@@ -9,7 +9,8 @@ app.use(cors({ origin: '*' }));
 app.options('*', cors());
 
 const HANDLE        = 'aurumwood';
-const TELEGRAM_USER = '@marcelomjunior';
+const TG_BOT_TOKEN = '8619359220:AAGTv3qeAkUuwhS8WMv-UnR3MTHNDUshLlc';
+const TG_CHAT_ID   = '8782621401';
 const GIST_ID       = process.env.GIST_ID    || '2d866d61320ce44aea56e1f80658fd2e';
 const GIST_USER     = 'marcelomourajunior314-byte';
 const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
@@ -48,26 +49,23 @@ async function salvarVendidos(lista) {
 }
 
 async function notificarDono(msg) {
-  // Tenta até 3 vezes com delay crescente
-  for (let tentativa = 1; tentativa <= 3; tentativa++) {
-    try {
-      const url = `https://api.callmebot.com/text.php?user=${TELEGRAM_USER}&text=${encodeURIComponent(msg)}`;
-      const r = await fetch(url);
-      const body = await r.text();
-      console.log(`Telegram tentativa ${tentativa}: status=${r.status} body=${body.substring(0,50)}`);
-      if (r.status === 200 && !body.includes('Too many')) {
-        console.log('Telegram enviado com sucesso!');
-        return;
-      }
-      // Rate limited - espera antes de tentar novamente
-      console.log(`Rate limited, aguardando ${tentativa * 10}s...`);
-      await new Promise(resolve => setTimeout(resolve, tentativa * 10000));
-    } catch (e) {
-      console.error(`Telegram tentativa ${tentativa} erro:`, e.message);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+  // API oficial do Telegram - sem rate limit, ilimitado
+  try {
+    const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`;
+    const r = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: TG_CHAT_ID, text: msg })
+    });
+    const data = await r.json();
+    if (data.ok) {
+      console.log('Telegram enviado! message_id:', data.result.message_id);
+    } else {
+      console.error('Telegram erro:', JSON.stringify(data));
     }
+  } catch (e) {
+    console.error('Telegram falhou:', e.message);
   }
-  console.log('Telegram: todas as tentativas falharam');
 }
 
 app.post('/criar-cobranca', async (req, res) => {
@@ -144,7 +142,7 @@ app.get('/vendidos', async (req, res) => {
 });
 
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', versao: '4.0', token_ok: !!GITHUB_TOKEN, gist_id: GIST_ID });
+  res.json({ status: 'ok', versao: '4.1', token_ok: !!GITHUB_TOKEN, gist_id: GIST_ID });
 });
 
 app.listen(PORT, () => {
