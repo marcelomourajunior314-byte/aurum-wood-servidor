@@ -4,7 +4,12 @@ const fetch = require('node-fetch');
 
 const app = express();
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
+app.options('*', cors());
 
 const HANDLE = 'aurumwood';
 const WPP_DONO = '5547991498489'; // SEU número para receber notificações
