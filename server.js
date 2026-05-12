@@ -48,8 +48,6 @@ async function salvarVendidos(lista) {
 }
 
 async function notificarDono(msg) {
-  // Pequeno delay inicial para evitar rate limit
-  await new Promise(resolve => setTimeout(resolve, 2000));
   // Tenta até 3 vezes com delay crescente
   for (let tentativa = 1; tentativa <= 3; tentativa++) {
     try {
