@@ -18,13 +18,8 @@ let vendidos = [];
 // ── NOTIFICA DONO VIA CALLMEBOT (WhatsApp sem abrir browser) ──
 async function notificarDono(pedido) {
   try {
-    // CallMeBot envia mensagem direto no seu WhatsApp sem interação do cliente
-    // Para ativar: envie "I allow callmebot to send me messages" para +34 644 59 77 91 no WhatsApp
-    const apiKey = process.env.CALLMEBOT_KEY || '';
-    if (!apiKey) {
-      console.log('CALLMEBOT_KEY não configurado - pulando notificação WPP');
-      return;
-    }
+    // CallMeBot Telegram - notifica o dono silenciosamente
+    const telegramUser = '@marcelomjunior';
     const msg = encodeURIComponent(
       '🎟️ NOVA VENDA RIFA AURUM WOOD!\n\n' +
       '👤 Nome: ' + pedido.nome + '\n' +
@@ -33,9 +28,9 @@ async function notificarDono(pedido) {
       '💰 Total: R$ ' + pedido.total.toFixed(2) + '\n' +
       '📋 Pedido: ' + pedido.orderNsu
     );
-    const url = `https://api.callmebot.com/whatsapp.php?phone=${WPP_DONO}&text=${msg}&apikey=${apiKey}`;
-    await fetch(url);
-    console.log('Notificação WPP enviada para o dono!');
+    const url = 'https://api.callmebot.com/text.php?user=' + telegramUser + '&text=' + msg;
+    const resp = await fetch(url);
+    console.log('Notificação Telegram enviada! Status: ' + resp.status);
   } catch (err) {
     console.log('Erro ao notificar dono:', err.message);
   }
