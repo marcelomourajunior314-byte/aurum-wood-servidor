@@ -17,6 +17,35 @@ const SITE_URL = process.env.SITE_URL || 'https://aurumwood.netlify.app';
 const RAILWAY_URL = process.env.RAILWAY_URL || 'https://aurum-wood-servidor-production.up.railway.app';
 const PORT = process.env.PORT || 3000;
 
+
+// ── ATUALIZA GIST NO GITHUB ──
+async function atualizarGist(lista) {
+  try {
+    const GIST_ID = process.env.GIST_ID || '2d866d61320ce44aea56e1f80658fd2e';
+    const resp = await fetch('https://api.github.com/gists/' + GIST_ID, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': 'token ' + process.env.GITHUB_TOKEN,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        files: {
+          'vendidos.json': {
+            content: JSON.stringify({ vendidos: lista })
+          }
+        }
+      })
+    });
+    if (resp.ok) {
+      console.log('Gist atualizado! Vendidos:', lista);
+    } else {
+      console.error('Erro ao atualizar Gist:', resp.status);
+    }
+  } catch (err) {
+    console.error('Erro Gist:', err.message);
+  }
+}
+
 let pedidos = {};
 let vendidos = [];
 
@@ -137,6 +166,7 @@ app.post('/webhook', async (req, res) => {
       pedido.numArray.forEach(n => { if (!vendidos.includes(n)) vendidos.push(n); });
       vendidos.sort((a, b) => a - b);
       console.log('PAGO! ' + pedido.nome + ' | Nums: ' + pedido.nums);
+      await atualizarGist(vendidos);
 
       // Notifica o dono silenciosamente via CallMeBot
       await notificarDono(pedido);
