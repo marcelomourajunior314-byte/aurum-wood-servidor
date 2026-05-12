@@ -52,21 +52,30 @@ let vendidos = [];
 // ── NOTIFICA DONO VIA CALLMEBOT (WhatsApp sem abrir browser) ──
 async function notificarDono(pedido) {
   try {
-    // CallMeBot Telegram - notifica o dono silenciosamente
     const telegramUser = '@marcelomjunior';
+    
+    // Mensagem especial se número da sorte foi comprado
+    let header = '🎟️ NOVA VENDA RIFA AURUM WOOD!';
+    let extra = '';
+    if (pedido.temSorte && pedido.numsSorte && pedido.numsSorte.length > 0) {
+      header = '⭐🚨 NÚMERO DA SORTE VENDIDO! 🚨⭐';
+      extra = '\n🎁 Números premiados: ' + pedido.numsSorte.join(', ') + '\n💸 ENVIAR PIX PARA O CLIENTE!';
+    }
+
     const msg = encodeURIComponent(
-      '🎟️ NOVA VENDA RIFA AURUM WOOD!\n\n' +
+      header + '\n\n' +
       '👤 Nome: ' + pedido.nome + '\n' +
       '📱 WPP: ' + pedido.wpp + '\n' +
       '🔢 Números: ' + pedido.nums + '\n' +
       '💰 Total: R$ ' + pedido.total.toFixed(2) + '\n' +
-      '📋 Pedido: ' + pedido.orderNsu
+      '📋 Pedido: ' + pedido.orderNsu +
+      extra
     );
     const url = 'https://api.callmebot.com/text.php?user=' + telegramUser + '&text=' + msg;
     const resp = await fetch(url);
-    console.log('Notificação Telegram enviada! Status: ' + resp.status);
+    console.log('Telegram enviado! Status: ' + resp.status);
   } catch (err) {
-    console.log('Erro ao notificar dono:', err.message);
+    console.log('Erro Telegram:', err.message);
   }
 }
 
@@ -168,7 +177,13 @@ app.post('/webhook', async (req, res) => {
       console.log('PAGO! ' + pedido.nome + ' | Nums: ' + pedido.nums);
       await atualizarGist(vendidos);
 
-      // Notifica o dono silenciosamente via CallMeBot
+      // Verifica se comprou número da sorte
+      const NUMEROS_SORTE = [75, 80];
+      const sorteComprado = pedido.numArray.filter(n => NUMEROS_SORTE.includes(n));
+      pedido.temSorte = sorteComprado.length > 0;
+      pedido.numsSorte = sorteComprado;
+
+      // Notifica o dono via Telegram
       await notificarDono(pedido);
     }
 
