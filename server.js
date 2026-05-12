@@ -47,7 +47,7 @@ app.post('/criar-cobranca', async (req, res) => {
     const payload = {
       handle: HANDLE,
       redirect_url: SITE_URL + '/obrigado.html',
-      webhook_url: process.env.RAILWAY_URL + '/webhook',
+      webhook_url: process.env.RAILWAY_URL || 'https://aurum-wood-servidor-production.up.railway.app' + '/webhook',
       order_nsu: orderNsu,
       customer: {
         name: nome,
