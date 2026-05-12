@@ -1,167 +1,173 @@
+// Aurum Wood - Servidor Rifa v3.0
+// Deploy forçado: 2026-05-12
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 
 const app = express();
 app.use(express.json());
-app.use(cors({ origin: '*', methods: ['GET','POST','OPTIONS'], allowedHeaders: ['Content-Type','Authorization'] }));
+app.use(cors({ origin: '*' }));
 app.options('*', cors());
 
-const HANDLE = 'aurumwood';
-const SITE_URL = process.env.SITE_URL || 'https://aurumwood.netlify.app';
-const RAILWAY_URL = process.env.RAILWAY_URL || 'https://aurum-wood-servidor-production.up.railway.app';
-const PORT = process.env.PORT || 3000;
-const NUMEROS_SORTE = [75, 80];
-const GIST_ID = process.env.GIST_ID || '2d866d61320ce44aea56e1f80658fd2e';
-const GIST_USER = 'marcelomourajunior314-byte';
+// ── CONSTANTES ──
+const HANDLE        = 'aurumwood';
+const WPP_DONO      = '5547991498489';
+const TELEGRAM_USER = '@marcelomjunior';
+const GIST_ID       = '2d866d61320ce44aea56e1f80658fd2e';
+const GIST_USER     = 'marcelomourajunior314-byte';
+const GITHUB_TOKEN  = process.env.GITHUB_TOKEN  || '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';
+const RAILWAY_URL   = process.env.RAILWAY_URL   || 'https://aurum-wood-servidor-production.up.railway.app';
+const SITE_URL      = process.env.SITE_URL      || 'https://aurumwood.netlify.app';
+const PORT          = process.env.PORT          || 3000;
+const NUMS_SORTE    = [75, 80];
 
-let processados = new Set();
-let vendidosCache = [];
+// ── ESTADO ──
+const processados = new Set();
 
-// ── LÊ VENDIDOS VIA API (sem cache) ──
+// ── GIST: LER ──
 async function lerVendidos() {
-  const TOKEN = process.env.GITHUB_TOKEN;
   try {
-    const headers = TOKEN ? { 'Authorization': 'token ' + TOKEN } : {};
-    const r = await fetch('https://api.github.com/gists/' + GIST_ID, { headers });
+    const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Accept': 'application/vnd.github.v3+json' }
+    });
+    if (!r.ok) { console.error('lerVendidos HTTP:', r.status); return []; }
     const data = await r.json();
-    const content = data.files && data.files['vendidos.json'] && data.files['vendidos.json'].content;
-    if (content) {
-      const parsed = JSON.parse(content);
-      vendidosCache = parsed.vendidos || [];
-      console.log('Vendidos lidos via API:', vendidosCache);
-      return vendidosCache;
-    }
-  } catch (err) { console.error('Erro lerVendidos:', err.message); }
-  return vendidosCache;
+    const raw = data.files?.['vendidos.json']?.content;
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    console.log('Vendidos lidos:', parsed.vendidos);
+    return parsed.vendidos || [];
+  } catch (e) { console.error('lerVendidos erro:', e.message); return []; }
 }
 
-// ── ESCREVE VENDIDOS VIA API ──
+// ── GIST: SALVAR ──
 async function salvarVendidos(lista) {
-  const TOKEN = process.env.GITHUB_TOKEN;
-  if (!TOKEN) { console.log('GITHUB_TOKEN não configurado!'); return false; }
   try {
-    const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
+    const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, {
       method: 'PATCH',
-      headers: { 'Authorization': 'token ' + TOKEN, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `token ${GITHUB_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ files: { 'vendidos.json': { content: JSON.stringify({ vendidos: lista }) } } })
     });
-    const ok = r.status === 200;
     console.log('Gist salvo! Status:', r.status, '| Lista:', lista);
-    return ok;
-  } catch (err) { console.error('Erro salvarVendidos:', err.message); return false; }
+    return r.ok;
+  } catch (e) { console.error('salvarVendidos erro:', e.message); return false; }
 }
 
-// ── NOTIFICA TELEGRAM ──
-async function notificarTelegram(nome, wpp, nums, total, isSorte, numsSorte) {
+// ── TELEGRAM ──
+async function telegram(msg) {
   try {
-    const user = '@marcelomjunior';
-    let header = '🎟️ NOVA VENDA RIFA AURUM WOOD!';
-    let extra = '';
-    if (isSorte && numsSorte.length > 0) {
-      header = '⭐🚨 NÚMERO DA SORTE VENDIDO! 🚨⭐';
-      extra = '\n🎁 Premiados: ' + numsSorte.join(', ') + '\n💸 ENVIAR PIX AO CLIENTE!';
-    }
-    const valor = parseFloat(total/100).toFixed(2);
-    const msg = encodeURIComponent(header + '\n\n👤 ' + nome + '\n📱 ' + wpp + '\n🔢 Números: ' + nums + '\n💰 R$ ' + valor + extra);
-    const r = await fetch('https://api.callmebot.com/text.php?user=' + user + '&text=' + msg);
+    const url = `https://api.callmebot.com/text.php?user=${TELEGRAM_USER}&text=${encodeURIComponent(msg)}`;
+    const r = await fetch(url);
     console.log('Telegram status:', r.status);
-  } catch (err) { console.error('Erro Telegram:', err.message); }
+  } catch (e) { console.error('Telegram erro:', e.message); }
 }
 
-// ── CRIAR COBRANÇA ──
+// ── POST /criar-cobranca ──
 app.post('/criar-cobranca', async (req, res) => {
   try {
     const { nome, wpp, email, total, nums } = req.body;
     if (!nome || !total || !nums) return res.status(400).json({ erro: 'Dados incompletos' });
 
-    const vendidosAtuais = await lerVendidos();
-    const numArray = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
-    const conflitos = numArray.filter(n => vendidosAtuais.includes(n));
-    if (conflitos.length > 0) return res.status(400).json({ erro: 'Numeros indisponiveis', numeros: conflitos });
+    const vendidos    = await lerVendidos();
+    const numArray    = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
+    const conflitos   = numArray.filter(n => vendidos.includes(n));
+    if (conflitos.length) return res.status(400).json({ erro: 'Numeros indisponiveis', numeros: conflitos });
 
-    const totalCents = Math.round(parseFloat(total) * 100);
-    const orderNsu = 'rifa-' + Date.now();
+    const cents    = Math.round(parseFloat(total) * 100);
+    const orderNsu = `rifa-${Date.now()}`;
+    const redirect = `${SITE_URL}/obrigado.html?nome=${encodeURIComponent(nome)}&nums=${encodeURIComponent(nums)}&total=${encodeURIComponent(parseFloat(total).toFixed(2))}&order_nsu=${encodeURIComponent(orderNsu)}`;
 
-    const redirectUrl = SITE_URL + '/obrigado.html'
-      + '?nome=' + encodeURIComponent(nome)
-      + '&nums=' + encodeURIComponent(nums)
-      + '&total=' + encodeURIComponent(parseFloat(total).toFixed(2))
-      + '&order_nsu=' + encodeURIComponent(orderNsu);
-
+    // Monta payload COM dados do cliente para pré-preencher o checkout
     const payload = {
       handle: HANDLE,
-      redirect_url: redirectUrl,
-      webhook_url: RAILWAY_URL + '/webhook',
+      redirect_url: redirect,
+      webhook_url: `${RAILWAY_URL}/webhook`,
       order_nsu: orderNsu,
-      items: [{ quantity: 1, price: totalCents, description: 'Rifa Aurum Wood | Nos: ' + nums + ' | Nome: ' + nome + ' | WPP: ' + (wpp||'') }]
+      customer: {
+        name: nome,
+        ...(email ? { email } : {})
+      },
+      items: [{
+        quantity: 1,
+        price: cents,
+        description: `Rifa Aurum Wood | Nos: ${nums} | Nome: ${nome} | WPP: ${wpp || ''}`
+      }]
     };
 
     const r = await fetch('https://api.checkout.infinitepay.io/links', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
     });
     const data = await r.json();
-    if (!r.ok || !data.url) { console.error('Erro InfinitePay:', data); return res.status(500).json({ erro: 'Erro InfinitePay', detalhe: data }); }
 
-    console.log('Cobrança criada:', orderNsu, '| R$', parseFloat(total), '| Nums:', nums);
+    if (!r.ok || !data.url) {
+      console.error('InfinitePay erro:', JSON.stringify(data));
+      return res.status(500).json({ erro: 'Erro InfinitePay', detalhe: data });
+    }
+
+    console.log(`Cobrança: ${orderNsu} | R$${total} | Nums: ${nums}`);
     res.json({ url: data.url, order_nsu: orderNsu });
-  } catch (err) { console.error('Erro:', err); res.status(500).json({ erro: err.message }); }
+
+  } catch (e) { console.error('criar-cobranca erro:', e); res.status(500).json({ erro: e.message }); }
 });
 
-// ── WEBHOOK ──
+// ── POST /webhook ──
 app.post('/webhook', async (req, res) => {
-  res.status(200).json({ success: true, message: null });
+  res.status(200).json({ success: true });
   try {
-    console.log('Webhook:', JSON.stringify(req.body));
+    console.log('Webhook raw:', JSON.stringify(req.body));
     const { order_nsu, amount, items } = req.body;
     if (!order_nsu) return;
     if (processados.has(order_nsu)) { console.log('Já processado:', order_nsu); return; }
 
-    let nums = '', nome = '', wpp = '', numArray = [];
+    // Extrai dados da descrição
+    const desc     = items?.[0]?.description || '';
+    const nosM     = desc.match(/Nos:\s*([0-9,\s]+?)(?:\s*\||$)/);
+    const nomeM    = desc.match(/Nome:\s*([^|]+?)(?:\s*\||$)/);
+    const wppM     = desc.match(/WPP:\s*([^|]+?)(?:\s*\||$)/);
+    const nums     = nosM ? nosM[1].trim() : '';
+    const nome     = nomeM ? nomeM[1].trim() : 'Desconhecido';
+    const wpp      = wppM ? wppM[1].trim() : '';
+    const numArray = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n));
 
-    if (items && items[0] && items[0].description) {
-      const desc = items[0].description;
-      console.log('Description:', desc);
-      const nosM = desc.match(/Nos:\s*([0-9,\s]+?)(?:\s*\||\s*$)/);
-      if (nosM) { nums = nosM[1].trim(); numArray = nums.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n)); }
-      const nomM = desc.match(/Nome:\s*([^|]+?)(?:\s*\||\s*$)/);
-      if (nomM) nome = nomM[1].trim();
-      const wppM = desc.match(/WPP:\s*([^|]+?)(?:\s*\||\s*$)/);
-      if (wppM) wpp = wppM[1].trim();
-    }
+    console.log(`Extraído — Nome: ${nome} | Nums: ${nums} | WPP: ${wpp}`);
 
-    if (numArray.length === 0) { console.log('Nenhum número no webhook!'); return; }
+    if (!numArray.length) { console.log('Nenhum número extraído!'); return; }
 
-    // Lê vendidos ATUAIS via API (sem cache)
-    const vendidosAtuais = await lerVendidos();
-    numArray.forEach(n => { if (!vendidosAtuais.includes(n)) vendidosAtuais.push(n); });
-    vendidosAtuais.sort((a, b) => a - b);
-    vendidosCache = vendidosAtuais;
-
-    // Salva via API
-    const saved = await salvarVendidos(vendidosAtuais);
-    console.log('PAGO!', nome, '| Nums:', nums, '| Gist salvo:', saved, '| Total vendidos:', vendidosAtuais);
+    // Lê, atualiza e salva
+    const vendidos = await lerVendidos();
+    numArray.forEach(n => { if (!vendidos.includes(n)) vendidos.push(n); });
+    vendidos.sort((a, b) => a - b);
+    const salvo = await salvarVendidos(vendidos);
 
     processados.add(order_nsu);
+    console.log(`PAGO! ${nome} | Nums: ${nums} | Gist: ${salvo} | Total: ${vendidos}`);
 
-    const numsSorte = numArray.filter(n => NUMEROS_SORTE.includes(n));
-    await notificarTelegram(nome, wpp, nums, amount || 0, numsSorte.length > 0, numsSorte);
+    // Telegram
+    const numsSorte = numArray.filter(n => NUMS_SORTE.includes(n));
+    const isSorte   = numsSorte.length > 0;
+    const valor     = ((amount || 0) / 100).toFixed(2);
+    const msg = isSorte
+      ? `⭐🚨 NÚMERO DA SORTE VENDIDO!\n\n👤 ${nome}\n📱 ${wpp}\n🔢 Nums: ${nums}\n💰 R$ ${valor}\n🎁 Premiados: ${numsSorte.join(', ')}\n💸 ENVIAR PIX!`
+      : `🎟️ NOVA VENDA RIFA!\n\n👤 ${nome}\n📱 ${wpp}\n🔢 Nums: ${nums}\n💰 R$ ${valor}`;
+    await telegram(msg);
 
-  } catch (err) { console.error('Erro webhook:', err); }
+  } catch (e) { console.error('webhook erro:', e); }
 });
 
-// ── VENDIDOS — lê via API para garantir dados frescos ──
+// ── GET /vendidos ──
 app.get('/vendidos', async (req, res) => {
   const v = await lerVendidos();
   res.json({ vendidos: v });
 });
 
-// ── HEALTH ──
+// ── GET / ──
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', vendidos: vendidosCache.length, processados: processados.size, gist_id: GIST_ID });
+  res.json({ status: 'ok', versao: '3.0', gist_id: GIST_ID, processados: processados.size });
 });
 
 app.listen(PORT, () => {
-  console.log('Servidor Aurum Wood porta', PORT);
-  lerVendidos().then(v => console.log('Vendidos iniciais:', v));
+  console.log(`Aurum Wood v3.0 porta ${PORT}`);
+  lerVendidos();
 });
