@@ -47,11 +47,29 @@ async function salvarVendidos(lista) {
   } catch (e) { console.error('salvarVendidos:', e.message); return false; }
 }
 
-async function telegram(msg) {
-  try {
-    const r = await fetch(`https://api.callmebot.com/text.php?user=${TELEGRAM_USER}&text=${encodeURIComponent(msg)}`);
-    console.log('Telegram:', r.status);
-  } catch (e) { console.error('Telegram:', e.message); }
+async function notificarDono(msg) {
+  // Pequeno delay inicial para evitar rate limit
+  await new Promise(resolve => setTimeout(resolve, 2000));
+  // Tenta até 3 vezes com delay crescente
+  for (let tentativa = 1; tentativa <= 3; tentativa++) {
+    try {
+      const url = `https://api.callmebot.com/text.php?user=${TELEGRAM_USER}&text=${encodeURIComponent(msg)}`;
+      const r = await fetch(url);
+      const body = await r.text();
+      console.log(`Telegram tentativa ${tentativa}: status=${r.status} body=${body.substring(0,50)}`);
+      if (r.status === 200 && !body.includes('Too many')) {
+        console.log('Telegram enviado com sucesso!');
+        return;
+      }
+      // Rate limited - espera antes de tentar novamente
+      console.log(`Rate limited, aguardando ${tentativa * 10}s...`);
+      await new Promise(resolve => setTimeout(resolve, tentativa * 10000));
+    } catch (e) {
+      console.error(`Telegram tentativa ${tentativa} erro:`, e.message);
+      await new Promise(resolve => setTimeout(resolve, 5000));
+    }
+  }
+  console.log('Telegram: todas as tentativas falharam');
 }
 
 app.post('/criar-cobranca', async (req, res) => {
@@ -119,7 +137,7 @@ app.post('/webhook', async (req, res) => {
     const msg = numsSorte.length
       ? `⭐🚨 NÚMERO DA SORTE!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}\n🎁Premiados:${numsSorte.join(',')}\n💸ENVIAR PIX!`
       : `🎟️ NOVA VENDA!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}`;
-    await telegram(msg);
+    await notificarDono(msg);
   } catch (e) { console.error('webhook:', e); }
 });
 
