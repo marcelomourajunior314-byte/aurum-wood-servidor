@@ -172,6 +172,30 @@ app.get('/vendidos', async (req, res) => {
   res.json({ vendidos: await lerVendidos() });
 });
 
+// Proxy para API da Anthropic (evita bloqueio CORS no browser)
+app.post('/chat', async (req, res) => {
+  try {
+    const { apiKey, model, max_tokens, system, messages } = req.body;
+    if (!apiKey) return res.status(400).json({ erro: 'API Key ausente' });
+
+    const r = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({ model, max_tokens, system, messages })
+    });
+
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (e) {
+    console.error('chat proxy:', e.message);
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 // Endpoint manual para forçar deploy no Netlify (útil para testes)
 app.post('/deploy-admin', async (req, res) => {
   console.log('Deploy manual solicitado');
@@ -182,7 +206,7 @@ app.post('/deploy-admin', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    versao: '4.2',
+    versao: '4.3',
     token_ok: !!GITHUB_TOKEN,
     netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
     gist_id: GIST_ID
@@ -190,6 +214,6 @@ app.get('/', (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.2 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.3 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
