@@ -15,7 +15,8 @@ const GIST_ID        = process.env.GIST_ID        || '2d866d61320ce44aea56e1f806
 const GIST_USER      = 'marcelomourajunior314-byte';
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
 const NETLIFY_TOKEN  = process.env.NETLIFY_TOKEN;
-const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID;
+const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID; // admin app
+const NETLIFY_SITE_ID_MAIN = process.env.NETLIFY_SITE_ID_MAIN || ''; // site principal aurumwood
 const RAILWAY_URL    = process.env.RAILWAY_URL    || 'https://aurum-wood-servidor-production.up.railway.app';
 const SITE_URL       = process.env.SITE_URL       || 'https://aurumwood.netlify.app';
 const PORT           = process.env.PORT           || 3000;
@@ -206,14 +207,36 @@ app.post('/deploy-admin', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    versao: '4.3',
+    versao: '4.4',
     token_ok: !!GITHUB_TOKEN,
     netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
     gist_id: GIST_ID
   });
 });
 
+// Deploy do site principal (aurumwood.netlify.app)
+app.post('/deploy-site', async (req, res) => {
+  if (!NETLIFY_TOKEN) return res.status(400).json({ erro: 'NETLIFY_TOKEN ausente' });
+  const siteId = NETLIFY_SITE_ID_MAIN || NETLIFY_SITE_ID;
+  try {
+    const r = await fetch(`https://api.netlify.com/api/v1/sites/${siteId}/deploys`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${NETLIFY_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clear_cache: true })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      console.log('Deploy site principal! ID:', data.id);
+      res.json({ ok: true, deploy_id: data.id });
+    } else {
+      res.status(500).json({ erro: data.message || 'Erro deploy' });
+    }
+  } catch(e) {
+    res.status(500).json({ erro: e.message });
+  }
+});
+
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.3 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.4 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
