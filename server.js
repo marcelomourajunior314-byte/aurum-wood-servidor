@@ -23,6 +23,18 @@ const PORT           = process.env.PORT           || 3000;
 const NUMS_SORTE     = [75, 80];
 const processados    = new Set();
 
+async function lerConfig() {
+  try {
+    const headers = { 'Accept': 'application/vnd.github.v3+json' };
+    if (GITHUB_TOKEN) headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+    const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const raw = data.files?.['config-site.json']?.content;
+    return raw ? JSON.parse(raw) : null;
+  } catch (e) { console.error('lerConfig:', e.message); return null; }
+}
+
 async function lerVendidos() {
   try {
     const headers = { 'Accept': 'application/vnd.github.v3+json' };
@@ -97,7 +109,7 @@ async function publicarNetlify() {
 
 app.post('/criar-cobranca', async (req, res) => {
   try {
-    const { nome, wpp, email, total, nums } = req.body;
+    const { nome, wpp, email, total, nums, rifaId } = req.body;
     if (!nome || !total || !nums) return res.status(400).json({ erro: 'Dados incompletos' });
 
     const vendidos = await lerVendidos();
@@ -155,8 +167,13 @@ app.post('/webhook', async (req, res) => {
     await salvarVendidos(vendidos);
     processados.add(order_nsu);
 
+    // Buscar config dinâmica para números da sorte
+    const config = await lerConfig();
+    const numssorteConfig = (config?.rifas?.[0]?.sorte?.length ? config.rifas[0].sorte :
+      config?.sorteItens?.map(s=>parseInt(s.numero)).filter(n=>!isNaN(n)) || NUMS_SORTE);
+
     // Notifica Telegram
-    const numsSorte = numArray.filter(n => NUMS_SORTE.includes(n));
+    const numsSorte = numArray.filter(n => numssorteConfig.includes(n));
     const valor = ((amount || 0) / 100).toFixed(2);
     const msg = numsSorte.length
       ? `⭐🚨 NÚMERO DA SORTE!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}\n🎁Premiados:${numsSorte.join(',')}\n💸ENVIAR PIX!`
@@ -171,6 +188,12 @@ app.post('/webhook', async (req, res) => {
 
 app.get('/vendidos', async (req, res) => {
   res.json({ vendidos: await lerVendidos() });
+});
+
+// Endpoint para buscar configurações do site
+app.get('/config', async (req, res) => {
+  const config = await lerConfig();
+  res.json(config || {});
 });
 
 // Proxy para API da Anthropic (evita bloqueio CORS no browser)
