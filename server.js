@@ -1,4 +1,4 @@
-// Aurum Wood - Servidor Rifa v4.0
+// Aurum Wood - Servidor Rifa v4.2
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -8,17 +8,19 @@ app.use(express.json());
 app.use(cors({ origin: '*' }));
 app.options('*', cors());
 
-const HANDLE        = 'aurumwood';
-const TG_BOT_TOKEN = '8619359220:AAGTv3qeAkUuwhS8WMv-UnR3MTHNDUshLlc';
-const TG_CHAT_ID   = '8782621401';
-const GIST_ID       = process.env.GIST_ID    || '2d866d61320ce44aea56e1f80658fd2e';
-const GIST_USER     = 'marcelomourajunior314-byte';
-const GITHUB_TOKEN  = process.env.GITHUB_TOKEN;
-const RAILWAY_URL   = process.env.RAILWAY_URL || 'https://aurum-wood-servidor-production.up.railway.app';
-const SITE_URL      = process.env.SITE_URL    || 'https://aurumwood.netlify.app';
-const PORT          = process.env.PORT        || 3000;
-const NUMS_SORTE    = [75, 80];
-const processados   = new Set();
+const HANDLE         = 'aurumwood';
+const TG_BOT_TOKEN   = '8619359220:AAGTv3qeAkUuwhS8WMv-UnR3MTHNDUshLlc';
+const TG_CHAT_ID     = '8782621401';
+const GIST_ID        = process.env.GIST_ID        || '2d866d61320ce44aea56e1f80658fd2e';
+const GIST_USER      = 'marcelomourajunior314-byte';
+const GITHUB_TOKEN   = process.env.GITHUB_TOKEN;
+const NETLIFY_TOKEN  = process.env.NETLIFY_TOKEN;
+const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID;
+const RAILWAY_URL    = process.env.RAILWAY_URL    || 'https://aurum-wood-servidor-production.up.railway.app';
+const SITE_URL       = process.env.SITE_URL       || 'https://aurumwood.netlify.app';
+const PORT           = process.env.PORT           || 3000;
+const NUMS_SORTE     = [75, 80];
+const processados    = new Set();
 
 async function lerVendidos() {
   try {
@@ -49,7 +51,6 @@ async function salvarVendidos(lista) {
 }
 
 async function notificarDono(msg) {
-  // API oficial do Telegram - sem rate limit, ilimitado
   try {
     const url = `https://api.telegram.org/bot${TG_BOT_TOKEN}/sendMessage`;
     const r = await fetch(url, {
@@ -65,6 +66,31 @@ async function notificarDono(msg) {
     }
   } catch (e) {
     console.error('Telegram falhou:', e.message);
+  }
+}
+
+async function publicarNetlify() {
+  if (!NETLIFY_TOKEN || !NETLIFY_SITE_ID) {
+    console.log('Netlify: token ou site_id ausente, pulando deploy.');
+    return;
+  }
+  try {
+    const r = await fetch(`https://api.netlify.com/api/v1/sites/${NETLIFY_SITE_ID}/deploys`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${NETLIFY_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ clear_cache: true })
+    });
+    const data = await r.json();
+    if (r.ok) {
+      console.log('Netlify deploy disparado! Deploy ID:', data.id, '| Estado:', data.state);
+    } else {
+      console.error('Netlify deploy erro:', JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error('Netlify deploy falhou:', e.message);
   }
 }
 
@@ -128,12 +154,17 @@ app.post('/webhook', async (req, res) => {
     await salvarVendidos(vendidos);
     processados.add(order_nsu);
 
+    // Notifica Telegram
     const numsSorte = numArray.filter(n => NUMS_SORTE.includes(n));
     const valor = ((amount || 0) / 100).toFixed(2);
     const msg = numsSorte.length
       ? `⭐🚨 NÚMERO DA SORTE!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}\n🎁Premiados:${numsSorte.join(',')}\n💸ENVIAR PIX!`
       : `🎟️ NOVA VENDA!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}`;
     await notificarDono(msg);
+
+    // Publica app admin no Netlify automaticamente
+    await publicarNetlify();
+
   } catch (e) { console.error('webhook:', e); }
 });
 
@@ -141,11 +172,24 @@ app.get('/vendidos', async (req, res) => {
   res.json({ vendidos: await lerVendidos() });
 });
 
+// Endpoint manual para forçar deploy no Netlify (útil para testes)
+app.post('/deploy-admin', async (req, res) => {
+  console.log('Deploy manual solicitado');
+  await publicarNetlify();
+  res.json({ ok: true, msg: 'Deploy disparado' });
+});
+
 app.get('/', (req, res) => {
-  res.json({ status: 'ok', versao: '4.1', token_ok: !!GITHUB_TOKEN, gist_id: GIST_ID });
+  res.json({
+    status: 'ok',
+    versao: '4.2',
+    token_ok: !!GITHUB_TOKEN,
+    netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
+    gist_id: GIST_ID
+  });
 });
 
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.0 porta ${PORT} | Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.2 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
