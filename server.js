@@ -107,7 +107,7 @@ app.post('/criar-cobranca', async (req, res) => {
 
     const cents = Math.round(parseFloat(total) * 100);
     const orderNsu = `rifa-${Date.now()}`;
-    const redirect = `${SITE_URL}/obrigado.html?nome=${encodeURIComponent(nome)}&nums=${encodeURIComponent(nums)}&total=${encodeURIComponent(parseFloat(total).toFixed(2))}&order_nsu=${encodeURIComponent(orderNsu)}`;
+    const redirect = `${SITE_URL}/?nome=${encodeURIComponent(nome)}&nums=${encodeURIComponent(nums)}&total=${encodeURIComponent(parseFloat(total).toFixed(2))}&order_nsu=${encodeURIComponent(orderNsu)}`;
 
     const payload = {
       handle: HANDLE,
@@ -207,7 +207,7 @@ app.post('/deploy-admin', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    versao: '4.4',
+    versao: '4.5',
     token_ok: !!GITHUB_TOKEN,
     netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
     gist_id: GIST_ID
@@ -237,6 +237,6 @@ app.post('/deploy-site', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.4 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.5 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
