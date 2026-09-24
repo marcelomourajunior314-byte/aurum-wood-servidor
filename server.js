@@ -19,7 +19,7 @@ const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID; // admin app
 const NETLIFY_SITE_ID_MAIN = process.env.NETLIFY_SITE_ID_MAIN || ''; // site principal aurumwood
 const RAILWAY_URL    = process.env.RAILWAY_URL    || 'https://aurum-wood-servidor-production.up.railway.app';
 const SITE_URL       = process.env.SITE_URL       || 'https://aurumwood.netlify.app';
-const PORT           = process.env.PORT           || 3000;
+const PORT           = 8080; // fixo para bater com a porta configurada no dominio publico do Railway
 const NUMS_SORTE     = [75, 80];
 const processados    = new Set();
 
