@@ -1,4 +1,4 @@
-// Aurum Wood - Servidor Rifa v4.2
+// Aurum Wood - Servidor Rifa v4.5
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
@@ -30,7 +30,17 @@ async function lerConfig() {
     const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
     if (!r.ok) return null;
     const data = await r.json();
-    const raw = data.files?.['config-site.json']?.content;
+    const file = data.files?.['config-site.json'];
+    if (!file) return null;
+
+    let raw = file.content;
+
+    // Se o GitHub truncou o arquivo, busca o conteúdo completo pelo raw_url
+    if (file.truncated && file.raw_url) {
+      const rawResp = await fetch(file.raw_url, { headers });
+      if (rawResp.ok) raw = await rawResp.text();
+    }
+
     return raw ? JSON.parse(raw) : null;
   } catch (e) { console.error('lerConfig:', e.message); return null; }
 }
