@@ -321,7 +321,7 @@ app.post('/deploy-admin', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    versao: '4.6',
+    versao: '4.7-debug-portfolio',
     token_ok: !!GITHUB_TOKEN,
     netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
     gist_id: GIST_ID
@@ -351,6 +351,6 @@ app.post('/deploy-site', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.6 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.7-debug-portfolio porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
