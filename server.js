@@ -1,10 +1,10 @@
-// Aurum Wood - Servidor Rifa v4.5
+// Aurum Wood - Servidor Rifa v4.6
 const express = require('express');
 const cors = require('cors');
 const fetch = require('node-fetch');
 
 const app = express();
-app.use(express.json());
+app.use(express.json({ limit: '25mb' }));
 app.use(cors({ origin: '*' }));
 app.options('*', cors());
 
@@ -19,40 +19,67 @@ const NETLIFY_SITE_ID = process.env.NETLIFY_SITE_ID; // admin app
 const NETLIFY_SITE_ID_MAIN = process.env.NETLIFY_SITE_ID_MAIN || ''; // site principal aurumwood
 const RAILWAY_URL    = process.env.RAILWAY_URL    || 'https://aurum-wood-servidor-production.up.railway.app';
 const SITE_URL       = process.env.SITE_URL       || 'https://aurumwood.netlify.app';
-const PORT           = 8080; // fixo para bater com a porta configurada no dominio publico do Railway
+const PORT           = process.env.PORT           || 3000;
 const NUMS_SORTE     = [75, 80];
 const processados    = new Set();
 
+function ghHeaders() {
+  const headers = { 'Accept': 'application/vnd.github.v3+json' };
+  if (GITHUB_TOKEN) headers['Authorization'] = `token ${GITHUB_TOKEN}`;
+  return headers;
+}
+
+// Busca o conteúdo COMPLETO de um arquivo do Gist, mesmo quando a API
+// retorna ele truncado (GitHub corta o campo "content" acima de ~1MB).
+// Quando truncated=true, buscamos o conteúdo integral em file.raw_url.
+async function lerArquivoGistCompleto(gistData, nomeArquivo) {
+  const file = gistData?.files?.[nomeArquivo];
+  if (!file) return null;
+
+  if (!file.truncated) {
+    return file.content ?? null;
+  }
+
+  // Truncado: precisamos buscar o conteúdo completo via raw_url.
+  console.log(`Gist: arquivo "${nomeArquivo}" truncado, buscando conteúdo completo via raw_url...`);
+  if (!file.raw_url) {
+    console.error(`Gist: "${nomeArquivo}" truncado mas sem raw_url!`);
+    return null;
+  }
+
+  // raw_url exige autenticação porque o gist é secreto.
+  const r = await fetch(file.raw_url, { headers: ghHeaders() });
+  if (!r.ok) {
+    console.error(`Gist: falha ao buscar raw_url de "${nomeArquivo}":`, r.status);
+    return null;
+  }
+  return await r.text();
+}
+
+async function buscarGist() {
+  const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers: ghHeaders() });
+  if (!r.ok) {
+    console.error('buscarGist HTTP:', r.status, await r.text().catch(()=>''));
+    return null;
+  }
+  return await r.json();
+}
+
 async function lerConfig() {
   try {
-    const headers = { 'Accept': 'application/vnd.github.v3+json' };
-    if (GITHUB_TOKEN) headers['Authorization'] = `token ${GITHUB_TOKEN}`;
-    const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
-    if (!r.ok) return null;
-    const data = await r.json();
-    const file = data.files?.['config-site.json'];
-    if (!file) return null;
-
-    let raw = file.content;
-
-    // Se o GitHub truncou o arquivo, busca o conteúdo completo pelo raw_url
-    if (file.truncated && file.raw_url) {
-      const rawResp = await fetch(file.raw_url, { headers });
-      if (rawResp.ok) raw = await rawResp.text();
-    }
-
-    return raw ? JSON.parse(raw) : null;
+    const data = await buscarGist();
+    if (!data) return null;
+    const raw = await lerArquivoGistCompleto(data, 'config-site.json');
+    if (!raw) return null;
+    return JSON.parse(raw);
   } catch (e) { console.error('lerConfig:', e.message); return null; }
 }
 
 async function lerVendidos() {
   try {
-    const headers = { 'Accept': 'application/vnd.github.v3+json' };
-    if (GITHUB_TOKEN) headers['Authorization'] = `token ${GITHUB_TOKEN}`;
-    const r = await fetch(`https://api.github.com/gists/${GIST_ID}`, { headers });
-    if (!r.ok) { console.error('lerVendidos HTTP:', r.status, await r.text()); return []; }
-    const data = await r.json();
-    const raw = data.files?.['vendidos.json']?.content;
+    const data = await buscarGist();
+    if (!data) return [];
+    const raw = await lerArquivoGistCompleto(data, 'vendidos.json');
     const v = raw ? (JSON.parse(raw).vendidos || []) : [];
     console.log('Vendidos lidos:', v);
     return v;
@@ -240,7 +267,7 @@ app.post('/deploy-admin', async (req, res) => {
 app.get('/', (req, res) => {
   res.json({
     status: 'ok',
-    versao: '4.5',
+    versao: '4.6',
     token_ok: !!GITHUB_TOKEN,
     netlify_ok: !!(NETLIFY_TOKEN && NETLIFY_SITE_ID),
     gist_id: GIST_ID
@@ -270,6 +297,6 @@ app.post('/deploy-site', async (req, res) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Aurum Wood v4.5 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
+  console.log(`Aurum Wood v4.6 porta ${PORT} | GH Token: ${GITHUB_TOKEN ? 'OK' : 'AUSENTE'} | Netlify: ${NETLIFY_TOKEN ? 'OK' : 'AUSENTE'}`);
   lerVendidos();
 });
