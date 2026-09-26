@@ -65,13 +65,36 @@ async function buscarGist() {
   return await r.json();
 }
 
+// Portfólio, produtos e projetos em execução (que carregam fotos/vídeos pesados)
+// ficam em arquivos separados dentro do MESMO Gist, em vez de tudo dentro de
+// config-site.json. Isso dá a cada um seu próprio espaço, então um vídeo grande
+// no portfólio não compete com o resto do site pelo mesmo limite de tamanho.
+const ARQUIVOS_COLECOES = {
+  portfolio: 'portfolio.json',
+  produtos: 'produtos.json',
+  andamento: 'andamento.json'
+};
+
 async function lerConfig() {
   try {
     const data = await buscarGist();
     if (!data) return null;
     const raw = await lerArquivoGistCompleto(data, 'config-site.json');
     if (!raw) return null;
-    return JSON.parse(raw);
+    const config = JSON.parse(raw);
+
+    // Mescla as coleções que estiverem em arquivos separados. Se o arquivo
+    // dedicado ainda não existir (Gist antigo, antes dessa mudança), mantém o
+    // que já estiver embutido em config-site.json — migração sem quebrar nada.
+    for (const [chave, arquivo] of Object.entries(ARQUIVOS_COLECOES)) {
+      const rawColecao = await lerArquivoGistCompleto(data, arquivo);
+      if (rawColecao) {
+        try { config[chave] = JSON.parse(rawColecao); }
+        catch (e) { console.error(`lerConfig: erro ao parsear ${arquivo}:`, e.message); }
+      }
+    }
+
+    return config;
   } catch (e) { console.error('lerConfig:', e.message); return null; }
 }
 
