@@ -233,6 +233,33 @@ app.get('/config', async (req, res) => {
   res.json(config || {});
 });
 
+// Diagnóstico leve: mostra as chaves e tamanhos do config sem devolver
+// o payload gigante (útil para confirmar se portfolio/produtos/imagens
+// estão realmente salvos no Gist, sem depender de ferramentas que
+// truncam JSON grande ao inspecionar).
+app.get('/config-debug', async (req, res) => {
+  try {
+    const config = await lerConfig();
+    if (!config) return res.json({ ok: false, erro: 'config vazio ou ilegível' });
+    const resumo = {};
+    for (const k of Object.keys(config)) {
+      const v = config[k];
+      if (Array.isArray(v)) {
+        resumo[k] = { tipo: 'array', tamanho: v.length, chavesPrimeiroItem: v[0] ? Object.keys(v[0]) : [] };
+      } else if (typeof v === 'string') {
+        resumo[k] = { tipo: 'string', tamanho: v.length, amostra: v.slice(0, 40) };
+      } else if (typeof v === 'object' && v !== null) {
+        resumo[k] = { tipo: 'object', chaves: Object.keys(v) };
+      } else {
+        resumo[k] = { tipo: typeof v, valor: v };
+      }
+    }
+    res.json({ ok: true, tamanhoTotalJSON: JSON.stringify(config).length, chaves: resumo });
+  } catch (e) {
+    res.status(500).json({ ok: false, erro: e.message });
+  }
+});
+
 // Proxy para API da Anthropic (evita bloqueio CORS no browser)
 app.post('/chat', async (req, res) => {
   try {
