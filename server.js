@@ -246,6 +246,20 @@ app.get('/config-debug', async (req, res) => {
       const v = config[k];
       if (Array.isArray(v)) {
         resumo[k] = { tipo: 'array', tamanho: v.length, chavesPrimeiroItem: v[0] ? Object.keys(v[0]) : [] };
+        // Inspeção extra: se o primeiro item tiver um campo "fotos" ou "midias",
+        // mostra o formato de cada entrada (string vs objeto) sem despejar o conteúdo.
+        if (v[0]) {
+          for (const campo of ['fotos', 'midias']) {
+            const arr = v[0][campo];
+            if (Array.isArray(arr)) {
+              resumo[k][`${campo}Formato`] = arr.map(item => {
+                if (typeof item === 'string') return { tipo: 'string', tamanho: item.length, amostra: item.slice(0, 30) };
+                if (item && typeof item === 'object') return { tipo: 'object', chaves: Object.keys(item), amostra: JSON.stringify(item).slice(0, 60) };
+                return { tipo: typeof item };
+              });
+            }
+          }
+        }
       } else if (typeof v === 'string') {
         resumo[k] = { tipo: 'string', tamanho: v.length, amostra: v.slice(0, 40) };
       } else if (typeof v === 'object' && v !== null) {
