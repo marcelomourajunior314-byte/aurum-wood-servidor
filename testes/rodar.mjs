@@ -56,4 +56,12 @@ reset(); pc = { status: 404, body: {} }; await run('POST', '/webhook', hook('13'
 reset(); pc = { status: 503, body: {} }; await run('POST', '/webhook', hook('14')); ok(vendidos().includes(14) && tg()[0]?.includes('Não consegui confirmar'), 'InfinitePay fora do ar → aceita e avisa para conferir');
 reset(); r = await run('OPTIONS', '/criar-cobranca'); ok(r.status === 204 && r.headers.get('access-control-allow-origin') === '*', 'CORS liberado');
 
+console.log('Site (redirecionamento www)');
+const SITE = (await import(raiz + 'site/src/index.js')).default;
+const envS = { ASSETS: { fetch: async () => new Response('SITE') } };
+let rs = await SITE.fetch(new Request('https://www.aurumwood.com.br/rifa?x=1'), envS);
+ok(rs.status === 301 && rs.headers.get('location') === 'https://aurumwood.com.br/rifa?x=1', 'www redireciona para aurumwood.com.br');
+rs = await SITE.fetch(new Request('https://aurumwood.com.br/'), envS); ok((await rs.text()) === 'SITE', 'endereço principal abre o site');
+ok(readFileSync(raiz + 'site/public/index.html', 'utf8').includes('rel="canonical" href="https://aurumwood.com.br/"'), 'site marca o endereço oficial (canonical)');
+
 console.log(falhas ? `\n✘ ${falhas} falha(s)` : '\n✔ Tudo certo'); process.exit(falhas ? 1 : 0);
