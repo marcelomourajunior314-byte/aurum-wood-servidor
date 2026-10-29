@@ -1,0 +1,8 @@
+# Admin Aurum Wood – publicado automaticamente pelo Cloudflare a cada commit
+# Cloudflare > Workers & Pages > Create > Continue with GitHub > repositório: aurum-wood-servidor > Root directory: admin
+name = "aurumwood-admin"
+compatibility_date = "2026-06-01"
+workers_dev = true
+
+[assets]
+directory = "./public"
