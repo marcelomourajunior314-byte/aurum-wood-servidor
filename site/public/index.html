@@ -741,7 +741,7 @@
     document.body.style.overflow = 'hidden';
 
     // Chama o servidor para criar cobrança
-    const SERVER = 'https://aurum-wood-api.marcelomourajunior314.workers.dev';
+    const SERVER = 'https://api.aurumwood.com.br';
     fetch(SERVER + '/criar-cobranca', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -813,7 +813,7 @@
   // ══ CONFIGURAÇÕES DINÂMICAS (via servidor, evita CORS/truncamento e não expõe token) ══
   async function carregarConfigSite() {
     try {
-      const r = await fetch('https://aurum-wood-api.marcelomourajunior314.workers.dev/config', { cache: 'no-store' });
+      const r = await fetch('https://api.aurumwood.com.br/config', { cache: 'no-store' });
       if (!r.ok) return;
       const cfg = await r.json();
       if (!cfg || !Object.keys(cfg).length) return;
@@ -970,7 +970,7 @@
   carregarConfigSite();
 
   function r1CarregarVendidos() {
-    fetch('https://aurum-wood-api.marcelomourajunior314.workers.dev/vendidos', {
+    fetch('https://api.aurumwood.com.br/vendidos', {
       cache: 'no-store'
     })
     .then(r => r.json())

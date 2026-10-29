@@ -10,11 +10,15 @@ compatibility_date = "2026-06-01"
 workers_dev = true
 keep_vars = true   # não apaga variáveis criadas no painel do Cloudflare
 
+routes = [
+  { pattern = "api.aurumwood.com.br", custom_domain = true }
+]
+
 [vars]
 GIST_ID    = "2d866d61320ce44aea56e1f80658fd2e"
 TG_CHAT_ID = "8782621401"
 HANDLE     = "aurumwood"
-SITE_URL   = "https://aurumwood.marcelomourajunior314.workers.dev"
+SITE_URL   = "https://aurumwood.com.br"
 NUMS_SORTE = "75,80"
 # Opcional: deploy hooks do Cloudflare Pages (se o site/admin precisarem ser republicados)
 DEPLOY_HOOK_ADMIN = ""

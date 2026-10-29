@@ -4,5 +4,9 @@ name = "aurumwood-admin"
 compatibility_date = "2026-06-01"
 workers_dev = true
 
+routes = [
+  { pattern = "admin.aurumwood.com.br", custom_domain = true }
+]
+
 [assets]
 directory = "./public"

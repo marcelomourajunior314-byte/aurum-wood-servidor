@@ -527,7 +527,7 @@ body.light .screen{background:var(--bg)}
       <div class="card-title">Status do Sistema</div>
       <div class="setting-row"><div class="setting-lbl">Servidor (Cloudflare)</div><span class="badge" id="server-status">Verificando...</span></div>
       <div class="setting-row"><div class="setting-lbl">Versão</div><span class="badge badge-gold">v4.1</span></div>
-      <div class="setting-row"><div class="setting-lbl">Site</div><a href="https://aurumwood.marcelomourajunior314.workers.dev" target="_blank" style="color:var(--gold);font-size:.72rem;">aurumwood.marcelomourajunior314.workers.dev ↗</a></div>
+      <div class="setting-row"><div class="setting-lbl">Site</div><a href="https://aurumwood.com.br" target="_blank" style="color:var(--gold);font-size:.72rem;">aurumwood.com.br ↗</a></div>
       <button class="btn btn-outline btn-full" style="margin-top:.8rem;" onclick="checkServer()">Verificar conexão</button>
       <button class="btn btn-outline btn-full" style="margin-top:.5rem;" onclick="if(confirm('Trocar o token do GitHub deste aparelho?')){localStorage.removeItem('aw_gh_token');location.reload()}">Trocar token do GitHub</button>
     </div>
@@ -544,8 +544,8 @@ const GIST_ID     = '2d866d61320ce44aea56e1f80658fd2e';
 const GIST_USER   = 'marcelomourajunior314-byte';
 // Token do GitHub NÃO fica mais no código (o código é público). É pedido uma vez e guardado só neste aparelho.
 const GH_TOKEN    = (function(){ try { let t = localStorage.getItem('aw_gh_token'); if (!t) { t = (prompt('Primeiro acesso neste aparelho: cole o token do GitHub') || '').trim(); if (t) localStorage.setItem('aw_gh_token', t); } return t || ''; } catch(e) { return ''; } })();
-const SERVER      = 'https://aurum-wood-api.marcelomourajunior314.workers.dev';
-const SITE_URL    = 'https://aurumwood.marcelomourajunior314.workers.dev';
+const SERVER      = 'https://api.aurumwood.com.br';
+const SITE_URL    = 'https://aurumwood.com.br';
 
 // ══ ARMAZENAMENTO LOCAL (IndexedDB — usa o espaço real do aparelho, não o limite pequeno do localStorage) ══
 function idbOpen() {
@@ -1796,7 +1796,7 @@ async function publicarSite() {
     statusEl.innerHTML = statusEl.innerHTML.replace('Salvando no servidor...', 'Publicando site...');
 
     // Disparar redeploy do site principal
-    const deployResp = await fetch('https://aurum-wood-api.marcelomourajunior314.workers.dev/deploy-site', {
+    const deployResp = await fetch('https://api.aurumwood.com.br/deploy-site', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -2085,7 +2085,7 @@ async function enviarChat() {
   area.scrollTop=area.scrollHeight;
   document.getElementById('chat-send').disabled=true;
   try {
-    const resp=await fetch('https://aurum-wood-api.marcelomourajunior314.workers.dev/chat',{
+    const resp=await fetch('https://api.aurumwood.com.br/chat',{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({apiKey,model:'claude-sonnet-4-6',max_tokens:1000,
@@ -2095,9 +2095,9 @@ async function enviarChat() {
 - **Marca:** Aurum Wood — tábuas artesanais em madeira natural com resina epóxi
 - **Dono:** Marcelo Moura Junior, Rio Negrinho / Joinville - SC
 - **WhatsApp:** 47 99149-8489 | InfinitePay: $aurumwood
-- **Site principal:** https://aurumwood.marcelomourajunior314.workers.dev
-- **App Admin:** https://aurumwood-admin.marcelomourajunior314.workers.dev
-- **Servidor (Cloudflare Workers):** https://aurum-wood-api.marcelomourajunior314.workers.dev
+- **Site principal:** https://aurumwood.com.br
+- **App Admin:** https://admin.aurumwood.com.br
+- **Servidor (Cloudflare Workers):** https://api.aurumwood.com.br
 - **GitHub:** github.com/marcelomourajunior314-byte/aurum-wood-servidor
 
 ## INFRAESTRUTURA (Cloudflare, gratuito)
