@@ -16,3 +16,11 @@
 - POST /webhook → recebe confirmação de pagamento
 - GET /vendidos → retorna números vendidos
 - GET / → health check
+
+## Cloudflare Workers (substitui a Railway) – pasta `cloudflare/`
+
+Mesmas rotas, sem custo. Deploy automático a cada commit:
+1. Cloudflare → Workers & Pages → Create → **Import a repository** → `aurum-wood-servidor`
+2. **Root directory:** `cloudflare` · Deploy command: `npx wrangler deploy`
+3. Settings → Variables and Secrets → adicionar *Secret*: `GITHUB_TOKEN` e `TG_BOT_TOKEN`
+4. Endereço: `https://aurum-wood-api.<sua-conta>.workers.dev`

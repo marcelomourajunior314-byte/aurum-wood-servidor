@@ -1,0 +1,24 @@
+# Aurum Wood – servidor no Cloudflare Workers (substitui a Railway)
+# Deploy automático: Cloudflare > Workers & Pages > este worker > Settings > Build
+#   Repositório: aurum-wood-servidor | Pasta raiz (Root directory): cloudflare
+# Segredos (Settings > Variables and Secrets, tipo "Secret"):
+#   GITHUB_TOKEN  – token com permissão de Gist
+#   TG_BOT_TOKEN  – token do bot do Telegram
+name = "aurum-wood-api"
+main = "src/worker.js"
+compatibility_date = "2026-06-01"
+workers_dev = true
+keep_vars = true   # não apaga variáveis criadas no painel do Cloudflare
+
+[vars]
+GIST_ID    = "2d866d61320ce44aea56e1f80658fd2e"
+TG_CHAT_ID = "8782621401"
+HANDLE     = "aurumwood"
+SITE_URL   = "https://aurumwood.netlify.app"
+NUMS_SORTE = "75,80"
+# Opcional: deploy hooks do Cloudflare Pages (se o site/admin precisarem ser republicados)
+DEPLOY_HOOK_ADMIN = ""
+DEPLOY_HOOK_SITE  = ""
+
+[observability]
+enabled = true
