@@ -501,14 +501,6 @@ body.light .screen{background:var(--bg)}
         <div><div class="setting-lbl">Anthropic API Key</div><div class="setting-sub">Para o chat com Claude</div></div>
       </div>
       <div class="fg"><input type="password" id="cfg-anthropic" placeholder="sk-ant-..." onchange="salvarCfg('anthropic',this.value)"></div>
-      <div class="setting-row">
-        <div><div class="setting-lbl">Netlify Token</div><div class="setting-sub">Para publicar o site automaticamente</div></div>
-      </div>
-      <div class="fg"><input type="password" id="cfg-netlify" placeholder="nfp_..." onchange="salvarCfg('netlify',this.value)"></div>
-      <div class="setting-row">
-        <div><div class="setting-lbl">Netlify Site ID</div><div class="setting-sub">ID do site no Netlify</div></div>
-      </div>
-      <div class="fg"><input type="text" id="cfg-netlify-id" placeholder="abc123..." onchange="salvarCfg('netlify-id',this.value)"></div>
     </div>
     <div class="card">
       <div class="card-title">Tema do App</div>
@@ -2167,7 +2159,7 @@ function limparChat(){ chatHistory=[]; document.getElementById('chat-area').inne
 
 // ══ CONFIG ══
 function carregarConfig(){
-  ['anthropic','netlify','netlify-id'].forEach(k=>{
+  ['anthropic'].forEach(k=>{
     const el=document.getElementById('cfg-'+k); const v=localStorage.getItem('aw_cfg_'+k);
     if(el&&v) el.value=v;
   });

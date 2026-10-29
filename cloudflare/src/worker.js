@@ -3,7 +3,7 @@
 // /config-debug, /chat, /deploy-admin, /deploy-site e /.
 // Dados continuam no mesmo GitHub Gist.
 
-const VERSAO = '5.0-cloudflare';
+const VERSAO = '5.1-cloudflare';
 const ARQUIVOS_COLECOES = { portfolio: 'portfolio.json', produtos: 'produtos.json', andamento: 'andamento.json' };
 
 const CORS = {
@@ -105,6 +105,24 @@ async function dispararHook(url) {
   return { ok: r.ok, status: r.status };
 }
 
+// ---------------- Segurança: confirma o pagamento na própria InfinitePay ----------------
+// Retorna 'pago' | 'nao_pago' | 'indefinido' (InfinitePay fora do ar: aceita, mas avisa no Telegram)
+async function confirmarPagamento(env, body) {
+  const { order_nsu, transaction_nsu, invoice_slug } = body || {};
+  if (!order_nsu || !transaction_nsu || !invoice_slug) return 'nao_pago';
+  try {
+    const r = await fetch('https://api.checkout.infinitepay.io/payment_check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ handle: env.HANDLE, order_nsu, transaction_nsu, slug: invoice_slug }),
+    });
+    if (r.status >= 400 && r.status < 500 && r.status !== 429) return 'nao_pago';
+    if (!r.ok) return 'indefinido';
+    const d = await r.json().catch(() => null);
+    if (!d || typeof d.paid !== 'boolean') return 'indefinido';
+    return d.success !== false && d.paid ? 'pago' : 'nao_pago';
+  } catch (e) { console.error('payment_check', e.message); return 'indefinido'; }
+}
+
 // ---------------- Rotas ----------------
 async function criarCobranca(req, env, origin) {
   const { nome, wpp, email, total, nums } = await req.json().catch(() => ({}));
@@ -134,8 +152,14 @@ async function criarCobranca(req, env, origin) {
 
 async function processarWebhook(body, env) {
   const { order_nsu, amount, items } = body || {};
-  if (!order_nsu) return;
+  if (!order_nsu || !String(order_nsu).startsWith('rifa-')) return;
+  const conf = await confirmarPagamento(env, body);
   const desc = items?.[0]?.description || '';
+  if (conf === 'nao_pago') {
+    console.warn('Webhook recusado (pagamento não confirmado na InfinitePay)', order_nsu);
+    await telegram(env, `⚠️ Aviso de pagamento RECUSADO (não confirmado na InfinitePay)\nPedido: ${order_nsu}\n${desc.slice(0, 150)}\nSe o valor caiu na sua conta, marque os números manualmente no admin.`);
+    return;
+  }
   const nums = (desc.match(/Nos:\s*([0-9,\s]+?)(?:\s*\||$)/)?.[1] || '').trim();
   const nome = (desc.match(/Nome:\s*([^|]+?)(?:\s*\||$)/)?.[1] || 'Desconhecido').trim();
   const wpp  = (desc.match(/WPP:\s*([^|]+?)(?:\s*\||$)/)?.[1] || '').trim();
@@ -154,10 +178,11 @@ async function processarWebhook(body, env) {
   const sorte = numerosSorte(env, cfg);
   const premiados = numArray.filter(n => sorte.includes(n));
   const valor = ((amount || 0) / 100).toFixed(2);
-  const msg = premiados.length
+  const aviso = conf === 'indefinido' ? '\n⚠️ Não consegui confirmar na InfinitePay agora — confira se o valor caiu na conta.' : '';
+  const msg0 = premiados.length
     ? `⭐🚨 NÚMERO DA SORTE!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}\n🎁Premiados:${premiados.join(',')}\n💸ENVIAR PIX!`
     : `🎟️ NOVA VENDA!\n👤${nome}\n📱${wpp}\n🔢${nums}\n💰R$${valor}`;
-  await telegram(env, msg);
+  await telegram(env, msg0 + aviso);
   if (env.DEPLOY_HOOK_ADMIN) await dispararHook(env.DEPLOY_HOOK_ADMIN).catch(() => {});
 }
 
