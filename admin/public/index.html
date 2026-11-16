@@ -1469,27 +1469,23 @@ async function uploadVideoParaGitHub(file) {
   return `https://cdn.jsdelivr.net/gh/${GIST_USER}/${MEDIA_REPO}@main/${caminho}`;
 }
 
-function atualizarHistImg(file) {
+async function atualizarHistImg(file) {
   if(!file) return;
-  const r = new FileReader();
-  r.onload = e => {
-    editorData.historiaImg = e.target.result;
-    marcarAlterado();
-    const prev = document.getElementById('e-hist-preview');
-    if(prev) prev.innerHTML = `<img src="${e.target.result}" style="width:100%;max-height:300px;object-fit:contain;border-radius:var(--r);background:var(--bg3);">`;
-  };
-  r.readAsDataURL(file);
+  const src = await comprimirImagem(file, 1400, 0.8, 350);
+  if(!src) { toast('Não consegui ler essa imagem.', 'error'); return; }
+  editorData.historiaImg = src;
+  marcarAlterado();
+  const prev = document.getElementById('e-hist-preview');
+  if(prev) prev.innerHTML = `<img src="${src}" style="width:100%;max-height:300px;object-fit:contain;border-radius:var(--r);background:var(--bg3);">`;
 }
 
-function atualizarFotoProduto(idx, file) {
+async function atualizarFotoProduto(idx, file) {
   if(!file) return;
-  const r = new FileReader();
-  r.onload = e => {
-    produtos[idx].foto = e.target.result;
-    marcarAlterado();
-    renderProdutos();
-  };
-  r.readAsDataURL(file);
+  const src = await comprimirImagem(file, 1280, 0.78, 250);
+  if(!src) { toast('Não consegui ler essa imagem.', 'error'); return; }
+  produtos[idx].foto = src;
+  marcarAlterado();
+  renderProdutos();
 }
 
 function marcarAlterado() {
@@ -1714,6 +1710,11 @@ async function publicarSite() {
     // Portfólio, produtos e projetos em execução vão cada um pro seu PRÓPRIO
     // arquivo dentro do Gist — assim um vídeo grande num deles não some com o
     // espaço dos outros nem com o resto do site (config-site.json fica leve).
+    // Fotos já salvas que estão pesadas (de antes da compressão nova) são recomprimidas aqui.
+    await otimizarFotosPesadas([portfolio, produtos, andamento]);
+    if (editorData.historiaImg && editorData.historiaImg.length > 600000) {
+      editorData.historiaImg = await recomprimirDataUrl(editorData.historiaImg, 1400, 0.8, 450000);
+    }
     const portfolioData = portfolio.map(p => ({
       cidade: p.cidade,
       desc: p.desc,
@@ -1737,8 +1738,9 @@ async function publicarSite() {
     }));
 
     // config-site.json fica só com texto/config (leve, sem fotos/vídeos pesados)
+    const { produtos: _p, portfolio: _po, andamento: _an, ...editorSemMidias } = editorData;
     const cfgCompleta = {
-      ...editorData,
+      ...editorSemMidias,
       tema: editorData.temaSite || 'dark',
       rifas: rifas.map(r => ({
         id: r.id,
@@ -1992,29 +1994,77 @@ function lerArquivoComoDataURL(file) {
   });
 }
 
-function comprimirImagem(file, maxDim, qualidade) {
+// Compressor de imagens: reduz para no máximo maxDim px e baixa a qualidade até a foto
+// ficar com ~alvoKB (padrão 250KB). Assim dezenas de fotos da galeria cabem no site.
+function dataUrlParaImagem(dataUrl) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('formato de imagem não suportado'));
+    img.src = dataUrl;
+  });
+}
+function comprimirImagemEl(img, maxDim, qualidade, alvoBytes) {
+  let { width, height } = img;
+  if (width > maxDim || height > maxDim) {
+    if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
+    else { width = Math.round(width * maxDim / height); height = maxDim; }
+  }
+  const canvas = document.createElement('canvas');
+  canvas.width = width; canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, width, height);
+  ctx.drawImage(img, 0, 0, width, height);
+  let q = qualidade, out = canvas.toDataURL('image/jpeg', q);
+  while (out.length > alvoBytes * 1.37 && q > 0.45) { q -= 0.08; out = canvas.toDataURL('image/jpeg', q); }
+  // ainda pesada: diminui as dimensões
+  let escala = 0.85;
+  while (out.length > alvoBytes * 1.37 && escala > 0.4) {
+    canvas.width = Math.round(width * escala); canvas.height = Math.round(height * escala);
+    const c2 = canvas.getContext('2d'); c2.fillStyle = '#fff'; c2.fillRect(0,0,canvas.width,canvas.height);
+    c2.drawImage(img, 0, 0, canvas.width, canvas.height);
+    out = canvas.toDataURL('image/jpeg', 0.6); escala -= 0.15;
+  }
+  return out;
+}
+function comprimirImagem(file, maxDim, qualidade, alvoKB) {
   return new Promise(resolve => {
     const reader = new FileReader();
-    reader.onload = e => {
-      const img = new Image();
-      img.onload = () => {
-        let { width, height } = img;
-        if (width > maxDim || height > maxDim) {
-          if (width > height) { height = Math.round(height * maxDim / width); width = maxDim; }
-          else { width = Math.round(width * maxDim / height); height = maxDim; }
-        }
-        const canvas = document.createElement('canvas');
-        canvas.width = width; canvas.height = height;
-        canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', qualidade));
-      };
-      img.onerror = () => resolve(e.target.result);
-      img.src = e.target.result;
+    reader.onload = async e => {
+      try {
+        const img = await dataUrlParaImagem(e.target.result);
+        resolve(comprimirImagemEl(img, maxDim || 1280, qualidade || 0.78, (alvoKB || 250) * 1024));
+      } catch (err) {
+        // formato que o navegador não abre (ex.: HEIC em alguns navegadores): só aceita se for pequena
+        resolve(file.size <= 400 * 1024 ? e.target.result : null);
+      }
     };
     reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 }
+async function recomprimirDataUrl(dataUrl, maxDim, qualidade, alvoBytes) {
+  try {
+    const img = await dataUrlParaImagem(dataUrl);
+    const novo = comprimirImagemEl(img, maxDim, qualidade, alvoBytes);
+    return novo.length < dataUrl.length ? novo : dataUrl;
+  } catch (e) { return dataUrl; }
+}
+async function otimizarFotosPesadas(listas) {
+  let n = 0;
+  for (const lista of listas) for (const item of lista) {
+    for (const m of (item.midias || [])) {
+      if (m.tipo !== 'video' && typeof m.src === 'string' && m.src.startsWith('data:image') && m.src.length > 450000) {
+        m.src = await recomprimirImagem_(m.src); n++;
+      }
+    }
+    if (typeof item.foto === 'string' && item.foto.startsWith('data:image') && item.foto.length > 450000) {
+      item.foto = await recomprimirImagem_(item.foto); n++;
+    }
+  }
+  if (n) toast(`${n} foto(s) pesada(s) otimizada(s).`, 'success');
+}
+function recomprimirImagem_(src) { return recomprimirDataUrl(src, 1280, 0.78, 250 * 1024); }
 
 async function processarMidias(files) {
   const resultados = [];
@@ -2037,7 +2087,7 @@ async function processarMidias(files) {
       continue;
     }
     try {
-      const src = await comprimirImagem(f, 1600, 0.82);
+      const src = await comprimirImagem(f, 1280, 0.78, 250);
       if (src) resultados.push({ src, tipo: 'foto' });
       else toast(`Não consegui ler o arquivo "${f.name}" (${f.type||'tipo desconhecido'}).`, 'error');
     } catch (e) {
