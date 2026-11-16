@@ -1738,7 +1738,11 @@ async function publicarSite() {
     }));
 
     // config-site.json fica só com texto/config (leve, sem fotos/vídeos pesados)
-    const { produtos: _p, portfolio: _po, andamento: _an, ...editorSemMidias } = editorData;
+    // Só entram no config-site.json os campos conhecidos de texto/config. Qualquer outro
+    // campo antigo que tenha ficado salvo no aparelho (e esteja pesado) é ignorado.
+    const CAMPOS_CONFIG = ['nome','slogan','hero','wpp','ml','citacao','h1','h2','h3','historiaImg','temaSite','textos'];
+    const editorSemMidias = {};
+    CAMPOS_CONFIG.forEach(k => { if (editorData[k] !== undefined) editorSemMidias[k] = editorData[k]; });
     const cfgCompleta = {
       ...editorSemMidias,
       tema: editorData.temaSite || 'dark',
@@ -1771,7 +1775,15 @@ async function publicarSite() {
     for (const [nome, conteudo] of Object.entries(arquivosParaSalvar)) {
       const tamanhoMB = (new Blob([conteudo]).size / (1024*1024));
       if (tamanhoMB > LIMITE_ARQUIVO_MB) {
-        throw new Error(`"${nome}" ficou muito pesado (${tamanhoMB.toFixed(1)}MB). Remova algum vídeo/foto grande dessa seção e tente publicar de novo (limite seguro: ~${LIMITE_ARQUIVO_MB}MB por seção).`);
+        let pesos = '';
+        try {
+          const obj = JSON.parse(conteudo);
+          const base = Array.isArray(obj) ? obj : [obj];
+          const por = {};
+          base.forEach((o,i) => Object.entries(o||{}).forEach(([k,v]) => { por[k] = (por[k]||0) + JSON.stringify(v||'').length; }));
+          pesos = ' Maiores campos: ' + Object.entries(por).sort((x,y)=>y[1]-x[1]).slice(0,3).map(([k,v])=>`${k} ${(v/1048576).toFixed(1)}MB`).join(', ') + '.';
+        } catch(e){}
+        throw new Error(`"${nome}" ficou muito pesado (${tamanhoMB.toFixed(1)}MB). Remova algum vídeo/foto grande dessa seção e tente publicar de novo (limite seguro: ~${LIMITE_ARQUIVO_MB}MB por seção).${pesos}`);
       }
     }
 
