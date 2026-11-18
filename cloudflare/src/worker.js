@@ -3,7 +3,7 @@
 // /config-debug, /chat, /deploy-admin, /deploy-site e /.
 // Dados continuam no mesmo GitHub Gist.
 
-const VERSAO = '5.1-cloudflare';
+const VERSAO = '5.2-cloudflare';
 const ARQUIVOS_COLECOES = { portfolio: 'portfolio.json', produtos: 'produtos.json', andamento: 'andamento.json' };
 
 const CORS = {
@@ -48,14 +48,40 @@ async function configTexto(env, gist) {
   const fim = base.lastIndexOf('}');
   if (fim < 0) return null;
   let extra = '';
-  for (const [chave, arquivo] of Object.entries(ARQUIVOS_COLECOES)) {
-    const raw = await lerArquivoGist(env, gist, arquivo);
+  const entradas = Object.entries(ARQUIVOS_COLECOES);
+  const brutos = await Promise.all(entradas.map(([, arquivo]) => lerArquivoGist(env, gist, arquivo).catch(() => null)));
+  entradas.forEach(([chave], i) => {
+    const raw = brutos[i];
     if (raw && raw.trim()) extra += `,${JSON.stringify(chave)}:${raw.trim()}`;
-  }
+  });
   const corpo = base.slice(0, fim).trim();
   const vazio = corpo === '{';
   if (vazio && extra) extra = extra.slice(1);
   return corpo + extra + '}';
+}
+
+// Cache de borda do /config: o site abre rápido (sem refazer a leitura pesada do Gist a cada visita).
+// É apagado e refeito sempre que o admin publica (/deploy-site), então o visitante nunca vê versão velha.
+const CHAVE_CACHE_CONFIG = 'https://api.aurumwood.com.br/__cache/config';
+const TTL_CACHE_CONFIG = 600; // segundos (rede de segurança caso alguém edite o Gist direto)
+const temCache = () => typeof caches !== 'undefined' && caches.default;
+async function configCacheado(env, ctx) {
+  if (temCache()) {
+    try {
+      const hit = await caches.default.match(CHAVE_CACHE_CONFIG);
+      if (hit) return await hit.text();
+    } catch (e) { console.error('cache match', e.message); }
+  }
+  const t = await configTexto(env);
+  if (t && temCache() && ctx) {
+    ctx.waitUntil(caches.default.put(CHAVE_CACHE_CONFIG, new Response(t, { headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': `public, max-age=${TTL_CACHE_CONFIG}` } })).catch(e => console.error('cache put', e.message)));
+  }
+  return t;
+}
+async function renovarCacheConfig(env, ctx) {
+  if (!temCache()) return;
+  try { await caches.default.delete(CHAVE_CACHE_CONFIG); } catch (e) {}
+  if (ctx) ctx.waitUntil(configCacheado(env, ctx).catch(() => {}));
 }
 
 async function lerVendidos(env, gist) {
@@ -220,7 +246,7 @@ export default {
       if (p === '/' && req.method === 'GET')
         return json({ status: 'ok', versao: VERSAO, token_ok: !!env.GITHUB_TOKEN, telegram_ok: !!env.TG_BOT_TOKEN, gist_id: env.GIST_ID });
       if (p === '/vendidos' && req.method === 'GET') return json({ vendidos: await lerVendidos(env) });
-      if (p === '/config' && req.method === 'GET') { const t = await configTexto(env); return t ? rawJson(t) : json({}); }
+      if (p === '/config' && req.method === 'GET') { const t = await configCacheado(env, ctx); return t ? rawJson(t) : json({}); }
       if (p === '/config-debug' && req.method === 'GET') return configDebug(env);
       if (p === '/criar-cobranca' && req.method === 'POST') return criarCobranca(req, env, url.origin);
       if (p === '/webhook' && req.method === 'POST') {
@@ -231,7 +257,7 @@ export default {
       }
       if (p === '/chat' && req.method === 'POST') return chat(req);
       if (p === '/deploy-admin' && req.method === 'POST') return json({ ...(await dispararHook(env.DEPLOY_HOOK_ADMIN)), msg: 'Deploy disparado' });
-      if (p === '/deploy-site' && req.method === 'POST') return json(await dispararHook(env.DEPLOY_HOOK_SITE || env.DEPLOY_HOOK_ADMIN));
+      if (p === '/deploy-site' && req.method === 'POST') { await renovarCacheConfig(env, ctx); return json(await dispararHook(env.DEPLOY_HOOK_SITE || env.DEPLOY_HOOK_ADMIN)); }
       return json({ erro: 'Rota não encontrada' }, 404);
     } catch (e) {
       console.error('erro', p, e.message);
