@@ -745,6 +745,11 @@ function carregarRifas() {
     rifasFechadas = rf ? JSON.parse(rf) : [];
     // Se não tem nenhuma rifa, cria a padrão (atual)
     if(rifas.length === 0) {
+      // Aparelho novo: depois de criar a padrão, busca a rifa real publicada no site
+      if (!window.__rifaSyncInicial) {
+        window.__rifaSyncInicial = true;
+        setTimeout(() => { buscarConfigServidor().then(cfg => cfg && sincronizarRifasDoSite(cfg.rifas)).then(() => { try { renderRifasAbertas(); } catch(e){} }).catch(()=>{}); }, 1500);
+      }
       rifas = [{
         id: 'rifa-001',
         nome: 'Tábua Resinada Artesanal',
@@ -1533,8 +1538,12 @@ async function sincronizarDoSite() {
   const cfg = await buscarConfigServidor();
   if (!cfg) { toast('Não foi possível buscar do site agora', 'error'); return; }
   await aplicarConfigServidorNoEditor(cfg);
+  // Rifa (visível/oculta, preços, números da sorte...) e números vendidos também vêm do site
+  await sincronizarRifasDoSite(cfg.rifas);
+  try { const v = await lerVendidos(); if (rifas.length > 0 && Array.isArray(v)) { rifas[0].vendidos = v; salvarRifas(); } } catch(e) {}
   renderProdutos(); renderPortfolio(); renderAndamento();
-  toast('Sincronizado com o site!', 'success');
+  try { renderRifasAbertas(); } catch(e) {}
+  toast('Sincronizado com o site (inclui a rifa)!', 'success');
 }
 
 async function carregarEditor() {
