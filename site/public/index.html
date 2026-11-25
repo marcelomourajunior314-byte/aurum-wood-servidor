@@ -616,7 +616,7 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
       <input class="aval-hp" id="aval-site" tabindex="-1" aria-hidden="true" autocomplete="off">
       <button type="submit" class="btn-primary" style="margin-top:1.2rem;" id="aval-enviar">Enviar avaliação</button>
       <p class="aval-msg" id="aval-msg"></p>
-      <p class="aval-sub" style="margin-top:.6rem;">Sua avaliação aparece no site depois de analisada.</p>
+      <div id="aval-pos-google" style="display:none;margin-top:1rem;"><a class="btn-outline" id="aval-pos-link" href="#" target="_blank" rel="noopener">Publicar também no Google</a><p class="aval-sub" style="margin-top:.6rem;">Copiamos o seu comentário. É só colar na tela do Google.</p></div>
     </form>
   </div>
 </section>
@@ -1259,7 +1259,7 @@ function mostrarObrigado(nome, nums, total, orderNsu) {
 (function(){
   var API = 'https://api.aurumwood.com.br';
   var $ = function(id){ return document.getElementById(id); };
-  var aberto = Date.now(), nota = 0;
+  var aberto = Date.now(), nota = 0, googleUrl = '';
   function estrelas(n){ n = Math.round(n); return '★★★★★'.slice(0,n) + '☆☆☆☆☆'.slice(0,5-n); }
   function el(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
   function dataBR(iso){ try { return new Date(iso).toLocaleDateString('pt-BR'); } catch(e){ return ''; } }
@@ -1299,7 +1299,7 @@ function mostrarObrigado(nome, nums, total, orderNsu) {
         if (g.verUrl) { var l = el('a','', 'ver'); l.href = g.verUrl; l.target = '_blank'; l.rel = 'noopener'; sub.appendChild(l); }
         gc.appendChild(sub); gb.appendChild(gc); resumo.appendChild(gb);
       }
-      if (g.escreverUrl) { var w = $('aval-google-escrever'); w.href = g.escreverUrl; w.style.display = ''; }
+      if (g.escreverUrl) { googleUrl = g.escreverUrl; var w = $('aval-google-escrever'); w.href = g.escreverUrl; w.style.display = ''; }
     });
   }
   // estrelas clicáveis
@@ -1321,12 +1321,15 @@ function mostrarObrigado(nome, nums, total, orderNsu) {
     var msg = $('aval-msg'); msg.className = 'aval-msg'; msg.textContent = '';
     if (!nota) { msg.className = 'aval-msg erro'; msg.textContent = 'Escolha de 1 a 5 estrelas.'; return; }
     var btn = $('aval-enviar'); btn.disabled = true;
+    var textoEnviado = $('aval-texto').value;
     fetch(API + '/avaliacoes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
       nome: $('aval-nome').value, nota: nota, produto: $('aval-produto').value, texto: $('aval-texto').value,
       site: $('aval-site').value, ms: Date.now() - aberto }) })
     .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
     .then(function(x){
-      if (x.ok) { msg.className = 'aval-msg ok'; msg.textContent = 'Obrigado! Sua avaliação foi enviada e aparecerá no site depois de analisada.';
+      x.texto = textoEnviado;
+      if (x.ok) { msg.className = 'aval-msg ok'; msg.textContent = 'Obrigado pela sua avaliação! Ela aparecerá no site em breve.';
+        mostrarGoogle(x.texto);
         $('aval-form').reset(); nota = 0; Array.prototype.forEach.call(pick.children, function(b){ b.classList.remove('on'); }); }
       else { msg.className = 'aval-msg erro'; msg.textContent = (x.j && x.j.erro) || 'Não foi possível enviar agora.'; }
     })
@@ -1334,6 +1337,12 @@ function mostrarObrigado(nome, nums, total, orderNsu) {
     .then(function(){ btn.disabled = false; });
   };
   if (window.__prodNomes) window.__avalProdutos(window.__prodNomes);
+  // depois de enviar: convida (qualquer nota) a repetir a avaliação no Google; o texto vai para a área de transferência
+  function mostrarGoogle(texto){
+    if (!googleUrl) return;
+    try { if (navigator.clipboard && texto) navigator.clipboard.writeText(texto).catch(function(){}); } catch(e) {}
+    $('aval-pos-link').href = googleUrl; $('aval-pos-google').style.display = '';
+  }
   carregar();
 })();
 </script>
