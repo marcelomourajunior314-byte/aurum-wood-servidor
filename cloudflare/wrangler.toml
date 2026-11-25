@@ -20,6 +20,8 @@ TG_CHAT_ID = "8782621401"
 HANDLE     = "aurumwood"
 SITE_URL   = "https://aurumwood.com.br"
 NUMS_SORTE = "75,80"
+# Place ID do perfil da Aurum Wood no Google (não é segredo): ativa o botão "Avaliar no Google"
+GOOGLE_PLACE_ID = "ChIJTQyvGfzR3ZQRSu7DHnoJurE"
 # Opcional: deploy hooks do Cloudflare Pages (se o site/admin precisarem ser republicados)
 DEPLOY_HOOK_ADMIN = ""
 DEPLOY_HOOK_SITE  = ""
