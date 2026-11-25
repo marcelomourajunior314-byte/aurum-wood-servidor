@@ -3,7 +3,7 @@
 // /config-debug, /chat, /deploy-admin, /deploy-site e /.
 // Dados continuam no mesmo GitHub Gist.
 
-const VERSAO = '5.2-cloudflare';
+const VERSAO = '5.3-cloudflare';
 const ARQUIVOS_COLECOES = { portfolio: 'portfolio.json', produtos: 'produtos.json', andamento: 'andamento.json' };
 
 const CORS = {
@@ -80,8 +80,101 @@ async function configCacheado(env, ctx) {
 }
 async function renovarCacheConfig(env, ctx) {
   if (!temCache()) return;
-  try { await caches.default.delete(CHAVE_CACHE_CONFIG); } catch (e) {}
+  try { await caches.default.delete(CHAVE_CACHE_CONFIG); await caches.default.delete(CHAVE_CACHE_AVAL); } catch (e) {}
   if (ctx) ctx.waitUntil(configCacheado(env, ctx).catch(() => {}));
+}
+
+
+// ---------------- Avaliações dos clientes ----------------
+// Ficam no Gist (avaliacoes.json). O cliente envia pelo site -> entra como "pendente" -> você aprova no admin.
+const CHAVE_CACHE_AVAL = 'https://api.aurumwood.com.br/__cache/avaliacoes';
+const CHAVE_CACHE_GOOGLE = 'https://api.aurumwood.com.br/__cache/google';
+const MAX_ITENS_AVAL = 400;
+const limpar = (t, max) => String(t ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
+
+async function lerAvaliacoes(env) {
+  const gist = await buscarGist(env);
+  if (!gist) return null;
+  const raw = await lerArquivoGist(env, gist, 'avaliacoes.json');
+  try { return raw ? (JSON.parse(raw).itens || []) : []; } catch (e) { return []; }
+}
+async function salvarAvaliacoes(env, itens) {
+  const r = await fetch(`https://api.github.com/gists/${env.GIST_ID}`, {
+    method: 'PATCH',
+    headers: { ...ghHeaders(env), 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files: { 'avaliacoes.json': { content: JSON.stringify({ itens }) } } }),
+  });
+  return r.ok;
+}
+const publicas = itens => itens.filter(a => a.status === 'aprovada')
+  .sort((a, b) => String(b.data).localeCompare(String(a.data)))
+  .map(({ nome, nota, texto, produto, data }) => ({ nome, nota, texto, produto, data }));
+
+async function listarAvaliacoes(env, ctx) {
+  if (temCache()) {
+    try { const hit = await caches.default.match(CHAVE_CACHE_AVAL); if (hit) return rawJson(await hit.text()); } catch (e) {}
+  }
+  const itens = await lerAvaliacoes(env);
+  if (!itens) return json({ itens: [] });
+  const corpo = JSON.stringify({ itens: publicas(itens) });
+  if (temCache() && ctx) ctx.waitUntil(caches.default.put(CHAVE_CACHE_AVAL, new Response(corpo, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=300' } })).catch(() => {}));
+  return rawJson(corpo);
+}
+
+async function enviarAvaliacao(req, env, ctx) {
+  const b = await req.json().catch(() => ({}));
+  if (b.site) return json({ ok: true });                       // campo-armadilha preenchido por robô: finge que deu certo
+  if (Number(b.ms) < 2500) return json({ erro: 'Envio rápido demais. Tente de novo.' }, 400);
+  const nome = limpar(b.nome, 60), texto = limpar(b.texto, 600), produto = limpar(b.produto, 80);
+  const nota = Math.round(Number(b.nota));
+  if (!nome) return json({ erro: 'Informe seu nome.' }, 400);
+  if (!(nota >= 1 && nota <= 5)) return json({ erro: 'Escolha de 1 a 5 estrelas.' }, 400);
+  if (texto.length < 5) return json({ erro: 'Escreva um comentário um pouco maior.' }, 400);
+  if (/https?:\/\/|www\.|\.com\b/i.test(texto + ' ' + nome)) return json({ erro: 'Por favor, não coloque links no comentário.' }, 400);
+  // limite por pessoa: 1 avaliação a cada 5 minutos
+  const ip = req.headers.get('CF-Connecting-IP') || 'x';
+  const chaveIp = `https://api.aurumwood.com.br/__cache/aval-ip/${encodeURIComponent(ip)}`;
+  if (temCache()) {
+    try { if (await caches.default.match(chaveIp)) return json({ erro: 'Você já enviou uma avaliação agora há pouco. Tente mais tarde.' }, 429); } catch (e) {}
+  }
+  const itens = await lerAvaliacoes(env);
+  if (!itens) return json({ erro: 'Não foi possível salvar agora. Tente de novo em instantes.' }, 503);
+  if (itens.filter(a => a.status === 'pendente').length >= 100) return json({ erro: 'Muitas avaliações aguardando análise. Tente mais tarde.' }, 503);
+  const item = { id: 'a' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), nome, nota, texto, produto, data: new Date().toISOString(), status: 'pendente' };
+  itens.push(item);
+  const ok = await salvarAvaliacoes(env, itens.slice(-MAX_ITENS_AVAL));
+  if (!ok) return json({ erro: 'Não foi possível salvar agora. Tente de novo em instantes.' }, 503);
+  if (temCache()) ctx.waitUntil(caches.default.put(chaveIp, new Response('1', { headers: { 'Cache-Control': 'public, max-age=300' } })).catch(() => {}));
+  ctx.waitUntil(telegram(env, `⭐ NOVA AVALIAÇÃO (aguardando aprovação)\n👤${nome}\n${'★'.repeat(nota)}${'☆'.repeat(5 - nota)}${produto ? '\n📦' + produto : ''}\n💬${texto}\n\nAprove no admin: Config > Avaliações`));
+  return json({ ok: true });
+}
+
+// Avaliações do Google (Places API). Só funciona depois de configurar GOOGLE_PLACES_KEY (secret) e GOOGLE_PLACE_ID (variável) no painel do Cloudflare.
+async function avaliacoesGoogle(env, ctx) {
+  if (!env.GOOGLE_PLACES_KEY || !env.GOOGLE_PLACE_ID) return json({ configurado: false });
+  if (temCache()) {
+    try { const hit = await caches.default.match(CHAVE_CACHE_GOOGLE); if (hit) return rawJson(await hit.text()); } catch (e) {}
+  }
+  const r = await fetch(`https://places.googleapis.com/v1/places/${encodeURIComponent(env.GOOGLE_PLACE_ID)}?languageCode=pt-BR`, {
+    headers: { 'X-Goog-Api-Key': env.GOOGLE_PLACES_KEY, 'X-Goog-FieldMask': 'displayName,rating,userRatingCount,reviews,googleMapsUri' },
+  });
+  if (!r.ok) { console.error('Google Places', r.status, await r.text().catch(() => '')); return json({ configurado: true, erro: true, itens: [] }); }
+  const d = await r.json();
+  const corpo = JSON.stringify({
+    configurado: true,
+    nota: d.rating || null,
+    total: d.userRatingCount || 0,
+    verUrl: d.googleMapsUri || '',
+    escreverUrl: `https://search.google.com/local/writereview?placeid=${encodeURIComponent(env.GOOGLE_PLACE_ID)}`,
+    itens: (d.reviews || []).map(v => ({
+      nome: v.authorAttribution?.displayName || 'Cliente Google',
+      nota: v.rating || 5,
+      texto: v.text?.text || v.originalText?.text || '',
+      quando: v.relativePublishTimeDescription || '',
+    })).filter(v => v.texto),
+  });
+  if (temCache() && ctx) ctx.waitUntil(caches.default.put(CHAVE_CACHE_GOOGLE, new Response(corpo, { headers: { 'Content-Type': 'application/json', 'Cache-Control': 'public, max-age=21600' } })).catch(() => {}));
+  return rawJson(corpo);
 }
 
 async function lerVendidos(env, gist) {
@@ -247,6 +340,9 @@ export default {
         return json({ status: 'ok', versao: VERSAO, token_ok: !!env.GITHUB_TOKEN, telegram_ok: !!env.TG_BOT_TOKEN, gist_id: env.GIST_ID });
       if (p === '/vendidos' && req.method === 'GET') return json({ vendidos: await lerVendidos(env) });
       if (p === '/config' && req.method === 'GET') { const t = await configCacheado(env, ctx); return t ? rawJson(t) : json({}); }
+      if (p === '/avaliacoes' && req.method === 'GET') return listarAvaliacoes(env, ctx);
+      if (p === '/avaliacoes' && req.method === 'POST') return enviarAvaliacao(req, env, ctx);
+      if (p === '/avaliacoes-google' && req.method === 'GET') return avaliacoesGoogle(env, ctx);
       if (p === '/config-debug' && req.method === 'GET') return configDebug(env);
       if (p === '/criar-cobranca' && req.method === 'POST') return criarCobranca(req, env, url.origin);
       if (p === '/webhook' && req.method === 'POST') {

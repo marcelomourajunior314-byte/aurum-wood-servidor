@@ -21,6 +21,36 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
   body > section, body > footer { transition: opacity .35s ease; }
   html.aw-carregando body::after { content:'AURUM WOOD'; position:fixed; inset:0; display:flex; align-items:center; justify-content:center; font-family:'Cormorant Garamond',serif; font-style:italic; font-size:1.6rem; letter-spacing:.35em; color:#9a7a3a; opacity:.8; animation:awPulsa 1.4s ease-in-out infinite; pointer-events:none; z-index:5; }
   @keyframes awPulsa { 0%,100%{opacity:.35} 50%{opacity:.9} }
+
+  /* ===== Avaliações ===== */
+  #avaliacoes{padding:8rem 0;background:var(--bg2)}
+  .aval-resumo{display:flex;flex-wrap:wrap;gap:1.2rem 2.5rem;align-items:center;margin-top:2rem}
+  .aval-nota-box{display:flex;align-items:baseline;gap:.7rem}
+  .aval-nota-num{font-family:'Cormorant Garamond',serif;font-size:3.2rem;line-height:1;color:var(--white)}
+  .aval-estrelas{color:var(--gold);letter-spacing:.12em;font-size:1.05rem}
+  .aval-sub{font-size:.84rem;letter-spacing:.12em;color:var(--cream-dim)}
+  .aval-sub a{color:var(--gold);text-decoration:none;border-bottom:1px solid var(--gold-dim)}
+  .aval-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:1rem;margin-top:2.5rem}
+  .aval-card{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:1.4rem;display:flex;flex-direction:column;gap:.7rem}
+  .aval-card p{font-size:.95rem;line-height:1.7;color:var(--cream);margin:0}
+  .aval-card .aval-meta{display:flex;justify-content:space-between;align-items:center;gap:.6rem;font-size:.78rem;letter-spacing:.12em;color:var(--cream-dim);margin-top:auto}
+  .aval-card .aval-prod{font-size:.74rem;letter-spacing:.14em;text-transform:uppercase;color:var(--gold-dim)}
+  .aval-tag{font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;border:1px solid var(--border);border-radius:20px;padding:.15rem .6rem;color:var(--cream-dim);white-space:nowrap}
+  .aval-tag.google{color:#4285f4;border-color:rgba(66,133,244,.45)}
+  .aval-acoes{display:flex;flex-wrap:wrap;gap:1rem;margin-top:2.2rem}
+  .aval-form{display:none;margin-top:2rem;max-width:560px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:1.6rem}
+  .aval-form.aberto{display:block}
+  .aval-form label{display:block;font-size:.76rem;letter-spacing:.2em;text-transform:uppercase;color:var(--gold);margin:1rem 0 .4rem}
+  .aval-form label:first-of-type{margin-top:0}
+  .aval-form input,.aval-form select,.aval-form textarea{width:100%;background:var(--bg);color:var(--cream);border:1px solid var(--border);border-radius:4px;padding:.8rem;font-family:'Josefin Sans',sans-serif;font-size:.95rem}
+  .aval-form textarea{min-height:110px;resize:vertical}
+  .aval-pick{display:flex;gap:.2rem}
+  .aval-pick button{background:none;border:none;cursor:pointer;font-size:2rem;line-height:1;color:var(--gold-dim);opacity:.45;padding:0 .1rem;transition:opacity .15s,transform .15s}
+  .aval-pick button.on{opacity:1;color:var(--gold)}
+  .aval-pick button:hover{transform:scale(1.15)}
+  .aval-hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+  .aval-msg{margin-top:1rem;font-size:.9rem;letter-spacing:.06em}
+  .aval-msg.ok{color:var(--green)}.aval-msg.erro{color:var(--red)}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Josefin+Sans:wght@200;300;400&display=swap" rel="stylesheet">
@@ -295,6 +325,7 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
     <li><a href="#execucao">Projetos em Execução</a></li>
     <li><a href="#portfolio">Portfólio</a></li>
     <li><a href="#rifa" style="color:var(--green)!important;">🎟️ Rifa</a></li>
+    <li><a href="#avaliacoes">Avaliações</a></li>
     <li><a href="#historia">Nossa História</a></li>
     <li><a href="#contato" class="nav-cta">Comprar</a></li>
   </ul>
@@ -319,6 +350,7 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
   <a href="#execucao" style="font-size:1.2rem;letter-spacing:.3em;color:var(--cream);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">Projetos em Execução</a>
   <a href="#portfolio" style="font-size:1.2rem;letter-spacing:.3em;color:var(--cream);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">Portfólio</a>
   <a href="#rifa" style="font-size:1.2rem;letter-spacing:.3em;color:var(--green);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">🎟️ Rifa</a>
+  <a href="#avaliacoes" style="font-size:1.2rem;letter-spacing:.3em;color:var(--cream);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">Avaliações</a>
   <a href="#historia" style="font-size:1.2rem;letter-spacing:.3em;color:var(--cream);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">História</a>
   <a href="#contato" style="font-size:1.2rem;letter-spacing:.3em;color:var(--gold);text-decoration:none;text-transform:uppercase;" onclick="closeMobileMenu()">Comprar</a>
   <button class="theme-toggle-site" onclick="toggleTemaSite()" style="background:none;border:1px solid var(--border);color:var(--cream);padding:.5rem 1rem;border-radius:4px;font-size:1rem;letter-spacing:.2em;text-transform:uppercase;cursor:pointer;">☀️ Tema Claro</button>
@@ -561,6 +593,33 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
 </section>
 
 <div class="divider"></div>
+
+<section id="avaliacoes">
+  <div class="section-inner">
+    <p class="section-label reveal">Avaliações</p>
+    <h2 class="reveal">O que dizem nossos <em>clientes</em></h2>
+    <div class="aval-resumo reveal" id="aval-resumo"></div>
+    <div class="aval-grid" id="aval-grid"></div>
+    <div class="aval-acoes">
+      <button type="button" class="btn-primary" id="aval-abrir">Avaliar a Aurum Wood</button>
+      <a class="btn-outline" id="aval-google-escrever" href="#" target="_blank" rel="noopener" style="display:none;">Avaliar no Google</a>
+    </div>
+    <form class="aval-form" id="aval-form" autocomplete="off">
+      <label for="aval-nome">Seu nome</label>
+      <input id="aval-nome" maxlength="60" required>
+      <label>Sua nota</label>
+      <div class="aval-pick" id="aval-pick" role="radiogroup" aria-label="Nota de 1 a 5 estrelas"></div>
+      <label for="aval-produto">Produto</label>
+      <select id="aval-produto"><option value="">Experiência geral com a Aurum Wood</option></select>
+      <label for="aval-texto">Seu comentário</label>
+      <textarea id="aval-texto" maxlength="600" required placeholder="Conte como foi a sua experiência"></textarea>
+      <input class="aval-hp" id="aval-site" tabindex="-1" aria-hidden="true" autocomplete="off">
+      <button type="submit" class="btn-primary" style="margin-top:1.2rem;" id="aval-enviar">Enviar avaliação</button>
+      <p class="aval-msg" id="aval-msg"></p>
+      <p class="aval-sub" style="margin-top:.6rem;">Sua avaliação aparece no site depois de analisada.</p>
+    </form>
+  </div>
+</section>
 
 <section id="como-comprar">
   <div class="section-inner">
@@ -909,6 +968,8 @@ try { window.__awConfig = fetch('https://api.aurumwood.com.br/config', { cache: 
         el.innerHTML = (resto ? esc(resto) + ' ' : '') + (ultima ? `<em>${esc(ultima)}</em>` : '');
       });
     }
+    window.__prodNomes = (cfg.produtos || []).map(p => p.nome);
+    try { window.__avalProdutos && window.__avalProdutos(window.__prodNomes); } catch(e) {}
     // ML link
     if(cfg.ml) { document.querySelectorAll('[href*="mercadolivre"]').forEach(el => el.href = cfg.ml); }
     // Produtos (grid dinâmico — mostra todos, some se não houver nenhum)
@@ -1190,6 +1251,91 @@ function mostrarObrigado(nome, nums, total, orderNsu) {
     }); });
   }).observe(document.documentElement,{childList:true,subtree:true});
   document.addEventListener('DOMContentLoaded',function(){ varrer(document); });
+})();
+</script>
+
+<script>
+/* ===== Avaliações dos clientes + Google ===== */
+(function(){
+  var API = 'https://api.aurumwood.com.br';
+  var $ = function(id){ return document.getElementById(id); };
+  var aberto = Date.now(), nota = 0;
+  function estrelas(n){ n = Math.round(n); return '★★★★★'.slice(0,n) + '☆☆☆☆☆'.slice(0,5-n); }
+  function el(tag, cls, txt){ var e = document.createElement(tag); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; }
+  function dataBR(iso){ try { return new Date(iso).toLocaleDateString('pt-BR'); } catch(e){ return ''; } }
+  function card(a, origem){
+    var c = el('div','aval-card');
+    c.appendChild(el('div','aval-estrelas', estrelas(a.nota)));
+    c.appendChild(el('p', '', a.texto));
+    if (a.produto) c.appendChild(el('div','aval-prod', a.produto));
+    var meta = el('div','aval-meta');
+    meta.appendChild(el('span','', a.nome + (a.quando ? ' · ' + a.quando : (a.data ? ' · ' + dataBR(a.data) : ''))));
+    meta.appendChild(el('span','aval-tag' + (origem === 'google' ? ' google' : ''), origem === 'google' ? 'Google' : 'Cliente'));
+    c.appendChild(meta);
+    return c;
+  }
+  function jget(u){ return fetch(API + u, { cache: 'no-store' }).then(function(r){ return r.json(); }).catch(function(){ return null; }); }
+  function carregar(){
+    Promise.all([jget('/avaliacoes'), jget('/avaliacoes-google')]).then(function(res){
+      var site = (res[0] && res[0].itens) || [], g = res[1] || {};
+      var grid = $('aval-grid'), resumo = $('aval-resumo');
+      grid.textContent = ''; resumo.textContent = '';
+      var gi = (g.configurado && g.itens) ? g.itens : [];
+      site.forEach(function(a){ grid.appendChild(card(a,'site')); });
+      gi.forEach(function(a){ grid.appendChild(card(a,'google')); });
+      if (site.length) {
+        var m = site.reduce(function(s,a){ return s + a.nota; }, 0) / site.length;
+        var b = el('div','aval-nota-box');
+        b.appendChild(el('span','aval-nota-num', m.toFixed(1).replace('.',',')));
+        var col = el('div'); col.appendChild(el('div','aval-estrelas', estrelas(m)));
+        col.appendChild(el('div','aval-sub', site.length + (site.length === 1 ? ' avaliação de cliente' : ' avaliações de clientes')));
+        b.appendChild(col); resumo.appendChild(b);
+      }
+      if (g.configurado && g.nota) {
+        var gb = el('div','aval-nota-box');
+        gb.appendChild(el('span','aval-nota-num', String(g.nota).replace('.',',')));
+        var gc = el('div'); gc.appendChild(el('div','aval-estrelas', estrelas(g.nota)));
+        var sub = el('div','aval-sub'); sub.appendChild(document.createTextNode(g.total + ' no Google '));
+        if (g.verUrl) { var l = el('a','', 'ver'); l.href = g.verUrl; l.target = '_blank'; l.rel = 'noopener'; sub.appendChild(l); }
+        gc.appendChild(sub); gb.appendChild(gc); resumo.appendChild(gb);
+      }
+      if (g.configurado && g.escreverUrl) { var w = $('aval-google-escrever'); w.href = g.escreverUrl; w.style.display = ''; }
+      if (!site.length && !gi.length) grid.appendChild(el('p','aval-sub','Seja o primeiro a avaliar a Aurum Wood.'));
+    });
+  }
+  // estrelas clicáveis
+  var pick = $('aval-pick');
+  for (var i = 1; i <= 5; i++) (function(n){
+    var b = el('button','', '★'); b.type = 'button'; b.setAttribute('aria-label', n + (n === 1 ? ' estrela' : ' estrelas'));
+    b.onclick = function(){ nota = n; Array.prototype.forEach.call(pick.children, function(x, k){ x.classList.toggle('on', k < n); }); };
+    pick.appendChild(b);
+  })(i);
+  // produtos da loja no seletor
+  window.__avalProdutos = function(lista){
+    var sel = $('aval-produto'); if (!sel) return;
+    while (sel.options.length > 1) sel.remove(1);
+    (lista || []).forEach(function(n){ if (n) { var o = document.createElement('option'); o.value = n; o.textContent = n; sel.appendChild(o); } });
+  };
+  $('aval-abrir').onclick = function(){ $('aval-form').classList.toggle('aberto'); aberto = Date.now(); };
+  $('aval-form').onsubmit = function(ev){
+    ev.preventDefault();
+    var msg = $('aval-msg'); msg.className = 'aval-msg'; msg.textContent = '';
+    if (!nota) { msg.className = 'aval-msg erro'; msg.textContent = 'Escolha de 1 a 5 estrelas.'; return; }
+    var btn = $('aval-enviar'); btn.disabled = true;
+    fetch(API + '/avaliacoes', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({
+      nome: $('aval-nome').value, nota: nota, produto: $('aval-produto').value, texto: $('aval-texto').value,
+      site: $('aval-site').value, ms: Date.now() - aberto }) })
+    .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+    .then(function(x){
+      if (x.ok) { msg.className = 'aval-msg ok'; msg.textContent = 'Obrigado! Sua avaliação foi enviada e aparecerá no site depois de analisada.';
+        $('aval-form').reset(); nota = 0; Array.prototype.forEach.call(pick.children, function(b){ b.classList.remove('on'); }); }
+      else { msg.className = 'aval-msg erro'; msg.textContent = (x.j && x.j.erro) || 'Não foi possível enviar agora.'; }
+    })
+    .catch(function(){ msg.className = 'aval-msg erro'; msg.textContent = 'Sem conexão. Tente de novo.'; })
+    .then(function(){ btn.disabled = false; });
+  };
+  if (window.__prodNomes) window.__avalProdutos(window.__prodNomes);
+  carregar();
 })();
 </script>
 </body>

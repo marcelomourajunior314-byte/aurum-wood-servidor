@@ -498,6 +498,12 @@ body.light .screen{background:var(--bg)}
       <div class="setting-sub" style="margin-top:.5rem;">Use isso se editou em outro aparelho e não está vendo os dados aqui. ⚠️ Substitui o que não foi salvo neste aparelho.</div>
     </div>
     <div class="card">
+      <div class="card-title">⭐ Avaliações dos clientes <span id="aval-badge" style="color:#e07070;"></span></div>
+      <div class="setting-sub" style="margin-bottom:.6rem;">Avaliações enviadas pelo site ficam aguardando aqui. Só aparecem no site depois que você aprova.</div>
+      <div id="aval-admin-lista"><div class="setting-sub">Carregando...</div></div>
+      <button class="btn btn-outline btn-full" style="margin-top:.6rem;" onclick="carregarAvaliacoesAdmin()">🔄 Atualizar avaliações</button>
+    </div>
+    <div class="card">
       <div class="card-title">Credenciais API</div>
       <div class="setting-row">
         <div><div class="setting-lbl">Anthropic API Key</div><div class="setting-sub">Para o chat com Claude</div></div>
@@ -672,7 +678,7 @@ function goTo(screen) {
   });
   if (screen==='rifa') { atualizarRifa(); }
   if (screen==='editor') carregarEditor();
-  if (screen==='config') carregarConfig();
+  if (screen==='config') { carregarConfig(); carregarAvaliacoesAdmin(); }
 }
 
 function navTo(s) { goTo(s); }
@@ -2261,6 +2267,62 @@ function toast(msg,type=''){
   t.textContent=msg; t.className='toast show'+(type?' '+type:'');
   clearTimeout(toastTimer);
   toastTimer=setTimeout(()=>t.classList.remove('show'), type==='error' ? 9000 : 3000);
+}
+
+
+// ══ AVALIAÇÕES: moderação (lê/grava avaliacoes.json direto no Gist, como o resto do admin) ══
+let avalAdmin = [];
+const escAval = t => String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+async function carregarAvaliacoesAdmin() {
+  const box = document.getElementById('aval-admin-lista');
+  if (!box) return;
+  try {
+    const r = await fetch('https://api.github.com/gists/' + GIST_ID, { headers: { 'Authorization': `token ${GH_TOKEN}` }, cache: 'no-store' });
+    if (!r.ok) throw new Error('Gist ' + r.status);
+    const g = await r.json();
+    const f = g.files && g.files['avaliacoes.json'];
+    avalAdmin = f ? ((JSON.parse(f.content || '{"itens":[]}').itens) || []) : [];
+    renderAvaliacoesAdmin();
+  } catch (e) { box.innerHTML = '<div class="setting-sub" style="color:#e07070;">Não consegui carregar: ' + escAval(e.message) + '</div>'; }
+}
+function renderAvaliacoesAdmin() {
+  const box = document.getElementById('aval-admin-lista');
+  const pend = avalAdmin.filter(a => a.status === 'pendente');
+  document.getElementById('aval-badge').textContent = pend.length ? '· ' + pend.length + ' nova(s)' : '';
+  if (!avalAdmin.length) { box.innerHTML = '<div class="setting-sub">Nenhuma avaliação ainda.</div>'; return; }
+  const ordem = [...avalAdmin].sort((a, b) => (a.status === 'pendente' ? 0 : 1) - (b.status === 'pendente' ? 0 : 1) || String(b.data).localeCompare(String(a.data)));
+  box.innerHTML = ordem.map(a => `
+    <div style="border:1px solid var(--border-s);border-radius:var(--r);padding:.8rem;margin-bottom:.6rem;">
+      <div style="display:flex;justify-content:space-between;gap:.5rem;font-size:.7rem;">
+        <span style="color:var(--gold);">${'★'.repeat(a.nota)}${'☆'.repeat(5 - a.nota)} · ${escAval(a.nome)}</span>
+        <span style="color:${a.status === 'pendente' ? '#e0b050' : '#4caf7a'};">${a.status === 'pendente' ? 'AGUARDANDO' : 'PUBLICADA'}</span>
+      </div>
+      ${a.produto ? `<div class="setting-sub">📦 ${escAval(a.produto)}</div>` : ''}
+      <div style="font-size:.8rem;margin:.4rem 0;color:var(--cream);">${escAval(a.texto)}</div>
+      <div style="display:flex;gap:.5rem;">
+        ${a.status === 'pendente' ? `<button class="btn btn-gold" style="flex:1;padding:.5rem;" onclick="moderarAvaliacao('${a.id}','aprovar')">Aprovar</button>` : `<button class="btn btn-outline" style="flex:1;padding:.5rem;" onclick="moderarAvaliacao('${a.id}','ocultar')">Ocultar</button>`}
+        <button class="btn btn-red" style="flex:1;padding:.5rem;" onclick="moderarAvaliacao('${a.id}','excluir')">Excluir</button>
+      </div>
+    </div>`).join('');
+}
+async function moderarAvaliacao(id, acao) {
+  if (acao === 'excluir' && !confirm('Excluir esta avaliação?')) return;
+  try {
+    // lê de novo antes de gravar, para não apagar avaliações que chegaram agora
+    const r0 = await fetch('https://api.github.com/gists/' + GIST_ID, { headers: { 'Authorization': `token ${GH_TOKEN}` }, cache: 'no-store' });
+    const g0 = await r0.json();
+    let itens = (g0.files && g0.files['avaliacoes.json']) ? (JSON.parse(g0.files['avaliacoes.json'].content || '{"itens":[]}').itens || []) : [];
+    if (acao === 'excluir') itens = itens.filter(a => a.id !== id);
+    else itens = itens.map(a => a.id === id ? { ...a, status: acao === 'aprovar' ? 'aprovada' : 'pendente' } : a);
+    const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
+      method: 'PATCH', headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'avaliacoes.json': { content: JSON.stringify({ itens }) } } })
+    });
+    if (!r.ok) throw new Error('Gist ' + r.status);
+    avalAdmin = itens; renderAvaliacoesAdmin();
+    fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {}); // limpa o cache e atualiza o site
+    toast(acao === 'aprovar' ? 'Avaliação publicada no site!' : acao === 'excluir' ? 'Avaliação excluída.' : 'Avaliação ocultada.', 'success');
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
 // ══ ATUALIZAR APP ══

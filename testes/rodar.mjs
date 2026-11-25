@@ -28,7 +28,8 @@ globalThis.fetch = async (u, o = {}) => {
   u = String(u); const m = o.method || 'GET'; calls.push([m, u, o.body]);
   const J = (x, s = 200) => new Response(JSON.stringify(x), { status: s });
   if (u.includes('api.github.com/gists') && m === 'GET') return J(gist);
-  if (u.includes('api.github.com/gists') && m === 'PATCH') { gist.files['vendidos.json'].content = JSON.parse(o.body).files['vendidos.json'].content; return J({}); }
+  if (u.includes('api.github.com/gists') && m === 'PATCH') { for (const [n, f] of Object.entries(JSON.parse(o.body).files)) gist.files[n] = { content: f.content }; return J({}); }
+  if (u.includes('places.googleapis.com')) return J({ rating: 4.9, userRatingCount: 12, googleMapsUri: 'https://maps/x', reviews: [{ authorAttribution: { displayName: 'Maria' }, rating: 5, text: { text: 'Lindo!' }, relativePublishTimeDescription: 'há 1 mês' }] });
   if (u === 'https://raw/c') return new Response('{"titulo":"Aurum","rifas":[{"sorte":[75,80]}]}');
   if (u.endsWith('/payment_check')) return J(pc.body, pc.status);
   if (u.includes('/links')) return J({ url: 'https://pay/x' });
@@ -54,6 +55,20 @@ reset(); pc = { status: 200, body: { success: true, paid: false } }; await run('
 reset(); await run('POST', '/webhook', hook('12', { transaction_nsu: undefined })); ok(!vendidos().includes(12), 'webhook falso (sem transaction_nsu) é recusado');
 reset(); pc = { status: 404, body: {} }; await run('POST', '/webhook', hook('13')); ok(!vendidos().includes(13), 'InfinitePay diz que não existe (404) → recusado');
 reset(); pc = { status: 503, body: {} }; await run('POST', '/webhook', hook('14')); ok(vendidos().includes(14) && tg()[0]?.includes('Não consegui confirmar'), 'InfinitePay fora do ar → aceita e avisa para conferir');
+// ---- avaliações ----
+const aval = () => JSON.parse(gist.files['avaliacoes.json']?.content || '{"itens":[]}').itens;
+const bom = { nome: 'Ana', nota: 5, texto: 'Peça linda, chegou perfeita!', produto: 'Tábua', ms: 5000 };
+reset(); r = await run('POST', '/avaliacoes', bom); ok(r.status === 200 && aval().length === 1 && aval()[0].status === 'pendente', 'avaliação entra como pendente');
+ok(tg().some(t => t.includes('NOVA AVALIAÇÃO')), 'Telegram avisa nova avaliação');
+r = await run('GET', '/avaliacoes'); ok((await r.json()).itens.length === 0, 'avaliação pendente NÃO aparece no site');
+{ const l = aval(); l[0].status = 'aprovada'; gist.files['avaliacoes.json'] = { content: JSON.stringify({ itens: l }) }; }
+r = await run('GET', '/avaliacoes'); { const j = await r.json(); ok(j.itens.length === 1 && j.itens[0].nome === 'Ana' && !('status' in j.itens[0]) && !('id' in j.itens[0]), 'avaliação aprovada aparece (sem campos internos)'); }
+reset(); await run('POST', '/avaliacoes', { ...bom, site: 'robo' }); ok(aval().length === 0, 'robô (campo-armadilha) é ignorado');
+reset(); r = await run('POST', '/avaliacoes', { ...bom, ms: 500 }); ok(r.status === 400 && aval().length === 0, 'envio rápido demais é recusado');
+reset(); r = await run('POST', '/avaliacoes', { ...bom, texto: 'compre em www.spam.com agora' }); ok(r.status === 400, 'comentário com link é recusado');
+reset(); r = await run('POST', '/avaliacoes', { ...bom, nota: 9 }); ok(r.status === 400, 'nota inválida é recusada');
+reset(); r = await run('GET', '/avaliacoes-google'); ok((await r.json()).configurado === false, 'Google sem chave: avisa que não está configurado');
+{ const e0 = { ...env, GOOGLE_PLACES_KEY: 'k', GOOGLE_PLACE_ID: 'P' }; const rr = await W.fetch(new Request('https://api.x/avaliacoes-google'), e0, { waitUntil() {} }); const j = await rr.json(); ok(j.nota === 4.9 && j.itens[0].nome === 'Maria' && j.escreverUrl.includes('placeid=P'), 'Google com chave: devolve nota, avaliações e link para avaliar'); }
 reset(); r = await run('OPTIONS', '/criar-cobranca'); ok(r.status === 204 && r.headers.get('access-control-allow-origin') === '*', 'CORS liberado');
 
 console.log('Site (redirecionamento www)');
