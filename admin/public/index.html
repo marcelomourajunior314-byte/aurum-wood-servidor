@@ -505,6 +505,7 @@ body.light .screen{background:var(--bg)}
       <details style="margin-top:.8rem;">
         <summary class="setting-sub" style="cursor:pointer;">➕ Adicionar avaliação do Google (copiada do seu perfil)</summary>
         <div class="fg" style="margin-top:.6rem;"><input id="ag-nome" placeholder="Nome de quem avaliou" maxlength="60"></div>
+        <div class="fg"><label class="setting-sub" for="ag-data">Data da avaliação</label><input type="date" id="ag-data"></div>
         <div class="fg"><select id="ag-nota"><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option></select></div>
         <div class="fg"><textarea id="ag-texto" rows="3" maxlength="600" placeholder="Texto da avaliação"></textarea></div>
         <button class="btn btn-gold btn-full" onclick="adicionarAvaliacaoGoogle()">Publicar no site como "Google"</button>
@@ -2280,6 +2281,30 @@ function toast(msg,type=''){
 // ══ AVALIAÇÕES: moderação (lê/grava avaliacoes.json direto no Gist, como o resto do admin) ══
 let avalAdmin = [];
 const escAval = t => String(t ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+// Correção única: as 4 primeiras avaliações do Google foram cadastradas sem data (ficaram com 25/11/2026).
+// Aqui ajusta para as datas mostradas no perfil do Google ("há 6 dias", "há 1 semana" são aproximadas). Roda só uma vez.
+async function corrigirDatasIniciaisAvaliacoes() {
+  try { if (localStorage.getItem('aw_datas_aval_v1')) return; } catch (e) {}
+  const norm = t => String(t || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+  const mapa = { 'jose carlos bonkowski': '2026-11-19', 'josue duffeck': '2026-11-18', 'maysa vaz': '2026-11-18', 'suelen bechler': '2022-05-21' };
+  let mudou = false;
+  avalAdmin = avalAdmin.map(a => {
+    const d = mapa[norm(a.nome)];
+    if (a.origem === 'google' && d && String(a.data).startsWith('2026-11-25')) { mudou = true; return { ...a, data: d + 'T12:00:00.000Z' }; }
+    return a;
+  });
+  if (mudou) {
+    const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
+      method: 'PATCH', headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'avaliacoes.json': { content: JSON.stringify({ itens: avalAdmin }) } } })
+    });
+    if (!r.ok) return;
+    fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {});
+    toast('Datas das avaliações do Google corrigidas.', 'success');
+  }
+  try { localStorage.setItem('aw_datas_aval_v1', '1'); } catch (e) {}
+}
 async function carregarAvaliacoesAdmin() {
   const box = document.getElementById('aval-admin-lista');
   if (!box) return;
@@ -2289,6 +2314,7 @@ async function carregarAvaliacoesAdmin() {
     const g = await r.json();
     const f = g.files && g.files['avaliacoes.json'];
     avalAdmin = f ? ((JSON.parse(f.content || '{"itens":[]}').itens) || []) : [];
+    await corrigirDatasIniciaisAvaliacoes();
     renderAvaliacoesAdmin();
   } catch (e) { box.innerHTML = '<div class="setting-sub" style="color:#e07070;">Não consegui carregar: ' + escAval(e.message) + '</div>'; }
 }
@@ -2304,6 +2330,7 @@ function renderAvaliacoesAdmin() {
         <span style="color:var(--gold);">${'★'.repeat(a.nota)}${'☆'.repeat(5 - a.nota)} · ${escAval(a.nome)}</span>
         <span style="color:${a.status === 'pendente' ? '#e0b050' : '#4caf7a'};">${a.status === 'pendente' ? 'AGUARDANDO' : 'PUBLICADA'}</span>
       </div>
+      <div class="setting-sub" style="display:flex;align-items:center;gap:.5rem;">📅 <input type="date" value="${String(a.data || '').slice(0,10)}" onchange="moderarAvaliacao('${a.id}','data',this.value)" style="padding:.2rem .4rem;font-size:.7rem;max-width:150px;"> ${a.origem === 'google' ? '· Google' : ''}</div>
       ${a.produto ? `<div class="setting-sub">📦 ${escAval(a.produto)}</div>` : ''}
       <div style="font-size:.8rem;margin:.4rem 0;color:var(--cream);">${escAval(a.texto)}</div>
       <div style="display:flex;gap:.5rem;">
@@ -2312,7 +2339,8 @@ function renderAvaliacoesAdmin() {
       </div>
     </div>`).join('');
 }
-async function moderarAvaliacao(id, acao) {
+function dataIsoDoCampo(v) { return (v && /^\d{4}-\d{2}-\d{2}$/.test(v)) ? v + 'T12:00:00.000Z' : new Date().toISOString(); }
+async function moderarAvaliacao(id, acao, valor) {
   if (acao === 'excluir' && !confirm('Excluir esta avaliação?')) return;
   try {
     // lê de novo antes de gravar, para não apagar avaliações que chegaram agora
@@ -2320,6 +2348,7 @@ async function moderarAvaliacao(id, acao) {
     const g0 = await r0.json();
     let itens = (g0.files && g0.files['avaliacoes.json']) ? (JSON.parse(g0.files['avaliacoes.json'].content || '{"itens":[]}').itens || []) : [];
     if (acao === 'excluir') itens = itens.filter(a => a.id !== id);
+    else if (acao === 'data') itens = itens.map(a => a.id === id ? { ...a, data: dataIsoDoCampo(valor) } : a);
     else itens = itens.map(a => a.id === id ? { ...a, status: acao === 'aprovar' ? 'aprovada' : 'pendente' } : a);
     const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
       method: 'PATCH', headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
@@ -2328,7 +2357,7 @@ async function moderarAvaliacao(id, acao) {
     if (!r.ok) throw new Error('Gist ' + r.status);
     avalAdmin = itens; renderAvaliacoesAdmin();
     fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {}); // limpa o cache e atualiza o site
-    toast(acao === 'aprovar' ? 'Avaliação publicada no site!' : acao === 'excluir' ? 'Avaliação excluída.' : 'Avaliação ocultada.', 'success');
+    toast(acao === 'data' ? 'Data atualizada.' : acao === 'aprovar' ? 'Avaliação publicada no site!' : acao === 'excluir' ? 'Avaliação excluída.' : 'Avaliação ocultada.', 'success');
   } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 
@@ -2342,14 +2371,14 @@ async function adicionarAvaliacaoGoogle() {
     const r0 = await fetch('https://api.github.com/gists/' + GIST_ID, { headers: { 'Authorization': `token ${GH_TOKEN}` }, cache: 'no-store' });
     const g0 = await r0.json();
     const itens = (g0.files && g0.files['avaliacoes.json']) ? (JSON.parse(g0.files['avaliacoes.json'].content || '{"itens":[]}').itens || []) : [];
-    itens.push({ id: 'g' + Date.now().toString(36), nome, nota, texto, produto: '', data: new Date().toISOString(), status: 'aprovada', origem: 'google' });
+    itens.push({ id: 'g' + Date.now().toString(36), nome, nota, texto, produto: '', data: dataIsoDoCampo(document.getElementById('ag-data').value), status: 'aprovada', origem: 'google' });
     const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
       method: 'PATCH', headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ files: { 'avaliacoes.json': { content: JSON.stringify({ itens }) } } })
     });
     if (!r.ok) throw new Error('Gist ' + r.status);
     avalAdmin = itens; renderAvaliacoesAdmin();
-    ['ag-nome','ag-texto'].forEach(i => document.getElementById(i).value = '');
+    ['ag-nome','ag-texto','ag-data'].forEach(i => document.getElementById(i).value = '');
     fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {});
     toast('Avaliação do Google publicada no site!', 'success');
   } catch (e) { toast('Erro: ' + e.message, 'error'); }
