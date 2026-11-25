@@ -502,6 +502,13 @@ body.light .screen{background:var(--bg)}
       <div class="setting-sub" style="margin-bottom:.6rem;">Avaliações enviadas pelo site ficam aguardando aqui. Só aparecem no site depois que você aprova.</div>
       <div id="aval-admin-lista"><div class="setting-sub">Carregando...</div></div>
       <button class="btn btn-outline btn-full" style="margin-top:.6rem;" onclick="carregarAvaliacoesAdmin()">🔄 Atualizar avaliações</button>
+      <details style="margin-top:.8rem;">
+        <summary class="setting-sub" style="cursor:pointer;">➕ Adicionar avaliação do Google (copiada do seu perfil)</summary>
+        <div class="fg" style="margin-top:.6rem;"><input id="ag-nome" placeholder="Nome de quem avaliou" maxlength="60"></div>
+        <div class="fg"><select id="ag-nota"><option value="5">5 estrelas</option><option value="4">4 estrelas</option><option value="3">3 estrelas</option></select></div>
+        <div class="fg"><textarea id="ag-texto" rows="3" maxlength="600" placeholder="Texto da avaliação"></textarea></div>
+        <button class="btn btn-gold btn-full" onclick="adicionarAvaliacaoGoogle()">Publicar no site como "Google"</button>
+      </details>
     </div>
     <div class="card">
       <div class="card-title">Credenciais API</div>
@@ -2322,6 +2329,29 @@ async function moderarAvaliacao(id, acao) {
     avalAdmin = itens; renderAvaliacoesAdmin();
     fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {}); // limpa o cache e atualiza o site
     toast(acao === 'aprovar' ? 'Avaliação publicada no site!' : acao === 'excluir' ? 'Avaliação excluída.' : 'Avaliação ocultada.', 'success');
+  } catch (e) { toast('Erro: ' + e.message, 'error'); }
+}
+
+
+async function adicionarAvaliacaoGoogle() {
+  const nome = document.getElementById('ag-nome').value.trim();
+  const texto = document.getElementById('ag-texto').value.trim();
+  const nota = parseInt(document.getElementById('ag-nota').value);
+  if (!nome || texto.length < 5) { toast('Preencha nome e texto da avaliação.', 'error'); return; }
+  try {
+    const r0 = await fetch('https://api.github.com/gists/' + GIST_ID, { headers: { 'Authorization': `token ${GH_TOKEN}` }, cache: 'no-store' });
+    const g0 = await r0.json();
+    const itens = (g0.files && g0.files['avaliacoes.json']) ? (JSON.parse(g0.files['avaliacoes.json'].content || '{"itens":[]}').itens || []) : [];
+    itens.push({ id: 'g' + Date.now().toString(36), nome, nota, texto, produto: '', data: new Date().toISOString(), status: 'aprovada', origem: 'google' });
+    const r = await fetch('https://api.github.com/gists/' + GIST_ID, {
+      method: 'PATCH', headers: { 'Authorization': `token ${GH_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { 'avaliacoes.json': { content: JSON.stringify({ itens }) } } })
+    });
+    if (!r.ok) throw new Error('Gist ' + r.status);
+    avalAdmin = itens; renderAvaliacoesAdmin();
+    ['ag-nome','ag-texto'].forEach(i => document.getElementById(i).value = '');
+    fetch('https://api.aurumwood.com.br/deploy-site', { method: 'POST' }).catch(() => {});
+    toast('Avaliação do Google publicada no site!', 'success');
   } catch (e) { toast('Erro: ' + e.message, 'error'); }
 }
 

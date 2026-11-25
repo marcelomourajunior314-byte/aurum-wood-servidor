@@ -68,6 +68,8 @@ reset(); r = await run('POST', '/avaliacoes', { ...bom, ms: 500 }); ok(r.status 
 reset(); r = await run('POST', '/avaliacoes', { ...bom, texto: 'compre em www.spam.com agora' }); ok(r.status === 400, 'comentário com link é recusado');
 reset(); r = await run('POST', '/avaliacoes', { ...bom, nota: 9 }); ok(r.status === 400, 'nota inválida é recusada');
 reset(); r = await run('GET', '/avaliacoes-google'); ok((await r.json()).configurado === false, 'Google sem chave: avisa que não está configurado');
+{ const rr = await W.fetch(new Request('https://api.x/avaliacoes-google'), { ...env, GOOGLE_PLACE_ID: 'P' }, { waitUntil() {} }); const j = await rr.json(); ok(j.configurado === false && j.escreverUrl.includes('placeid=P'), 'só com Place ID: devolve o link para avaliar no Google'); }
+reset(); { gist.files['avaliacoes.json'] = { content: JSON.stringify({ itens: [{ id: 'g1', nome: 'Maria', nota: 5, texto: 'Lindo demais', data: '2026-11-01', status: 'aprovada', origem: 'google' }] }) }; r = await run('GET', '/avaliacoes'); ok((await r.json()).itens[0].origem === 'google', 'avaliação do Google colada pelo admin aparece como "Google"'); }
 { const e0 = { ...env, GOOGLE_PLACES_KEY: 'k', GOOGLE_PLACE_ID: 'P' }; const rr = await W.fetch(new Request('https://api.x/avaliacoes-google'), e0, { waitUntil() {} }); const j = await rr.json(); ok(j.nota === 4.9 && j.itens[0].nome === 'Maria' && j.escreverUrl.includes('placeid=P'), 'Google com chave: devolve nota, avaliações e link para avaliar'); }
 reset(); r = await run('OPTIONS', '/criar-cobranca'); ok(r.status === 204 && r.headers.get('access-control-allow-origin') === '*', 'CORS liberado');
 

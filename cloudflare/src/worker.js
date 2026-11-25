@@ -108,7 +108,7 @@ async function salvarAvaliacoes(env, itens) {
 }
 const publicas = itens => itens.filter(a => a.status === 'aprovada')
   .sort((a, b) => String(b.data).localeCompare(String(a.data)))
-  .map(({ nome, nota, texto, produto, data }) => ({ nome, nota, texto, produto, data }));
+  .map(({ nome, nota, texto, produto, data, origem }) => ({ nome, nota, texto, produto, data, origem: origem === 'google' ? 'google' : 'site' }));
 
 async function listarAvaliacoes(env, ctx) {
   if (temCache()) {
@@ -151,7 +151,10 @@ async function enviarAvaliacao(req, env, ctx) {
 
 // Avaliações do Google (Places API). Só funciona depois de configurar GOOGLE_PLACES_KEY (secret) e GOOGLE_PLACE_ID (variável) no painel do Cloudflare.
 async function avaliacoesGoogle(env, ctx) {
-  if (!env.GOOGLE_PLACES_KEY || !env.GOOGLE_PLACE_ID) return json({ configurado: false });
+  if (!env.GOOGLE_PLACES_KEY || !env.GOOGLE_PLACE_ID) {
+    // Sem chave da API: só o link para o cliente avaliar no Google (precisa apenas do Place ID)
+    return json({ configurado: false, escreverUrl: env.GOOGLE_PLACE_ID ? `https://search.google.com/local/writereview?placeid=${encodeURIComponent(env.GOOGLE_PLACE_ID)}` : '' });
+  }
   if (temCache()) {
     try { const hit = await caches.default.match(CHAVE_CACHE_GOOGLE); if (hit) return rawJson(await hit.text()); } catch (e) {}
   }
